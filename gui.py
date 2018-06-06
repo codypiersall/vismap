@@ -1,19 +1,17 @@
-import os
+import abc
 import logging
-import time
 import os
-import sys
 
 from vispy import scene
-from vispy.ext.png import Reader
+from png import Reader
 from requests_cache import CachedSession
 import numpy as np
 from PyQt4 import QtCore, QtGui
-QtWidgets = QtGui
 from PyQt4.QtCore import Qt
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
+QtWidgets = QtGui
 DEFAULT_NLOGD_ADDR = 'tcp://10.203.7.171:46000'
 
 logger = logging.getLogger(__name__)
@@ -21,9 +19,111 @@ logger = logging.getLogger(__name__)
 session = CachedSession(cache_name='tiles')
 
 
-class CanvasMap(scene.SceneCanvas):
-    pass
+# adapted from VisPy's source code
+def read_png_bytes(data):
+    """Read a PNG file to RGB8 or RGBA8
+    Unlike imread, this requires no external dependencies.
+    Parameters
+    ----------
+    data : bytes
+        png data.
+    Returns
+    -------
+    data : array
+        Image data.
+    See also
+    --------
+    write_png, imread, imsave
+    """
+    x = Reader(bytes=data)
+    alpha = x.asDirect()[3]['alpha']
+    if alpha:
+        y = x.asRGBA8()[2]
+        n = 4
+    else:
+        y = x.asRGB8()[2]
+        n = 3
+    y = np.array([yy for yy in y], np.uint8)
+    y.shape = (y.shape[0], y.shape[1] // n, n)
+    return y
 
+
+class TileProvider(abc.ABC):
+    """Class which knows how to get tiles, given an x,y,z value"""
+    def __init__(self):
+        pass
+
+    @abc.abstractmethod
+    def url(self, z, x, y):
+        pass
+
+    def get_tile(self, z, x, y):
+        """Return tile as an array of rgb values"""
+        url = self.url(z, x, y)
+        resp = session.get(url)
+        img_bytes = resp.content
+        rgb = read_png_bytes(img_bytes)
+        return rgb
+
+
+class Stamen(TileProvider):
+    def url(self, z, x, y):
+        url = 'http://c.tile.stamen.com/{map_name}/{}/{}/{}.png'
+        return url.format(z, x, y)
+
+class StamenToner(Stamen):
+    map_name = 'stamen'
+
+class StamenLite(Stamen):
+    map_name = 'stamen-lite'
+
+class StamenTerrain(Stamen):
+    map_name = 'terrain'
+
+class StamenWatercolor(Stamen):
+    map_name = 'watercolor'
+
+class CartodbBase(TileProvider):
+    """Subclasses of CartodbBase must provide a `map_name` attribute on the class"""
+    def url(self, z, x, y):
+        base = 'http://cartodb-basemaps-1.global.ssl.fastly.net/{}/{}/{}/{}.png'
+        return base.format(self.map_name, z, x, y)
+
+
+class CartodbDark(CartodbBase):
+    map_name = 'dark_all'
+
+
+class CanvasMap(scene.SceneCanvas):
+    """Map on top of tile data"""
+    def __init__(self, *args, tile_provider=StamenToner(), **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set up a viewbox to display the image with interactive pan/zoom
+        self.unfreeze()
+        self.view = self.central_widget.add_view()
+        self.tile_provider = tile_provider
+
+        # mapping from (z, x, y) -> visual
+        self._images = {}
+
+        self.add_tile(0, 0, 0)
+
+        # Set 2D camera (the camera will scale to the contents in the scene)
+        self.view.camera = scene.PanZoomCamera(aspect=1)
+        # flip y-axis to have correct aligment
+        self.view.camera.flip = (0, 1, 0)
+        self.view.camera.set_range()
+        self.view.camera.zoom(1, (250, 200))
+        # default is 0.007, half of that feels about right
+        self.view.camera.zoom_factor = 0.0035
+        self.freeze()
+
+    def add_tile(self, z, x, y):
+        """Add tile to the canvas as an image"""
+        # Create the image
+        png = self.tile_provider.get_tile(z, x, y)
+        self.image = image = scene.visuals.Image(png, interpolation='nearest',
+                                                 parent=self.view.scene, method='subdivide')
 
 # Start Program
 class MainWindow(QtWidgets.QMainWindow):
@@ -59,94 +159,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusWidget = statusWidget = QtWidgets.QDockWidget('Status')
         statusWidget.setObjectName('Status')
 
-        self.canvas = canvas = CanvasMap(keys='interactive')
-        canvas.size = 800, 600
-        canvas.show()
-
-        # Set up a viewbox to display the image with interactive pan/zoom
-        self.view = canvas.central_widget.add_view()
-
-        def read_png_bytes(data):
-            """Read a PNG file to RGB8 or RGBA8
-            Unlike imread, this requires no external dependencies.
-            Parameters
-            ----------
-            data : bytes
-                png data.
-            Returns
-            -------
-            data : array
-                Image data.
-            See also
-            --------
-            write_png, imread, imsave
-            """
-            x = Reader(bytes=data)
-            alpha = x.asDirect()[3]['alpha']
-            if alpha:
-                y = x.asRGBA8()[2]
-                n = 4
-            else:
-                y = x.asRGB8()[2]
-                n = 3
-            y = np.array([yy for yy in y], np.uint8)
-            y.shape = (y.shape[0], y.shape[1] // n, n)
-            return y
-
-
-        # Create the image
-        resp = session.get('http://c.tile.stamen.com/toner/0/0/0.png')
-        resp = session.get('http://c.tile.stamen.com/toner/1/0/0.png')
-        resp = session.get('http://c.tile.stamen.com/toner/1/0/1.png')
-        resp = session.get('http://c.tile.stamen.com/toner/1/1/0.png')
-        resp = session.get('http://c.tile.stamen.com/toner/1/1/1.png')
-        img_bytes = resp.content
-        png = read_png_bytes(img_bytes)
-        interpolation = 'nearest'
-
-        self.image = image = scene.visuals.Image(png, interpolation=interpolation,
-                                    parent=self.view.scene, method='subdivide')
-
-        canvas.title = 'Spatial Filtering using %s Filter' % interpolation
-
-        # Set 2D camera (the camera will scale to the contents in the scene)
-        self.view.camera = scene.PanZoomCamera(aspect=1)
-        # flip y-axis to have correct aligment
-        self.view.camera.flip = (0, 1, 0)
-        self.view.camera.set_range()
-        self.view.camera.zoom(0.1, (250, 200))
-
-        # get interpolation functions from Image
-        names = image.interpolation_functions
-        names = list(names)
-        names.sort()
-        act = 17
-
-
-        # Implement key presses
-        @canvas.events.key_press.connect
-        def on_key_press(event):
-            global act
-            if event.key in ['Left', 'Right']:
-                if event.key == 'Right':
-                    step = 1
-                else:
-                    step = -1
-                act = (act + step) % len(names)
-                interpolation = names[act]
-                image.interpolation = interpolation
-                self.canvas.title = 'Spatial Filtering using %s Filter' % interpolation
-                self.canvas.update()
+        self.canvas = canvas = CanvasMap(tile_provider=CartodbDark(), keys='interactive')
+        # self.canvas = canvas = CanvasMap(keys='interactive')
 
         self.vislayout = QtWidgets.QBoxLayout(1)
         self.vislayout.addWidget(self.canvas.native)
         self.dockedWidget = QtWidgets.QWidget()
         statusWidget.setWidget(self.dockedWidget)
         self.dockedWidget.setLayout(self.vislayout)
-
-        statusWidget.setWidget(self.dockedWidget)
-        statusWidget.setLayout(self.vislayout)
-        statusWidget.show()
 
         ## Configure Console/Log Area
         consoleDock = QtWidgets.QDockWidget('Console')
@@ -181,10 +201,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         """Shutdown the Application"""
         # Autosave on Exit
-        self.quitting.emit(1)
-        time.sleep(2)
-        self.statusThread.quit()
-        self.logThread.quit()
 
 
 class MinimalJupyterWidget(RichJupyterWidget):
