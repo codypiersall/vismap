@@ -2,10 +2,13 @@ import abc
 import logging
 import os
 
-from vispy import scene
-from png import Reader
-from requests_cache import CachedSession
+import mercantile
 import numpy as np
+import vispy
+from vispy import scene
+import vispy.visuals.transforms as transforms
+from requests_cache import CachedSession
+from png import Reader
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
 from qtconsole.inprocess import QtInProcessKernelManager
@@ -61,6 +64,10 @@ class TileProvider(abc.ABC):
         """Return tile as an array of rgb values"""
         url = self.url(z, x, y)
         resp = session.get(url)
+        if resp.status_code != 200:
+            msg = 'Could not retrieve tile for z={}, x={}, y={}'
+            msg = msg.format(z, x, y)
+            raise ValueError(msg)
         img_bytes = resp.content
         rgb = read_png_bytes(img_bytes)
         return rgb
@@ -68,20 +75,23 @@ class TileProvider(abc.ABC):
 
 class Stamen(TileProvider):
     def url(self, z, x, y):
-        url = 'http://c.tile.stamen.com/{map_name}/{}/{}/{}.png'
-        return url.format(z, x, y)
+        url = 'http://c.tile.stamen.com/{}/{}/{}/{}.png'
+        url = url.format(self.map_name, z, x, y)
+        logger.debug('retrieving tile from %s', url)
+        return url
 
 class StamenToner(Stamen):
-    map_name = 'stamen'
+    map_name = 'toner'
 
 class StamenLite(Stamen):
-    map_name = 'stamen-lite'
+    map_name = 'toner-lite'
 
 class StamenTerrain(Stamen):
     map_name = 'terrain'
 
 class StamenWatercolor(Stamen):
     map_name = 'watercolor'
+
 
 class CartodbBase(TileProvider):
     """Subclasses of CartodbBase must provide a `map_name` attribute on the class"""
@@ -96,6 +106,9 @@ class CartodbDark(CartodbBase):
 
 class CanvasMap(scene.SceneCanvas):
     """Map on top of tile data"""
+    # x, y bounds for Web Mercator.
+    _web_mercator_bounds = 20037508.342789244
+
     def __init__(self, *args, tile_provider=StamenToner(), **kwargs):
         super().__init__(*args, **kwargs)
         # Set up a viewbox to display the image with interactive pan/zoom
@@ -106,30 +119,83 @@ class CanvasMap(scene.SceneCanvas):
         # mapping from (z, x, y) -> visual
         self._images = {}
 
+        z = 0
         self.add_tile(0, 0, 0)
+        for x in range(z*2):
+            for y in range(z*2):
+                self.add_tile(z, x, y)
 
         # Set 2D camera (the camera will scale to the contents in the scene)
         self.view.camera = scene.PanZoomCamera(aspect=1)
         # flip y-axis to have correct aligment
-        self.view.camera.flip = (0, 1, 0)
+        # self.view.camera.flip = (0, 1, 0)
         self.view.camera.set_range()
-        self.view.camera.zoom(1, (250, 200))
         # default is 0.007, half of that feels about right
         self.view.camera.zoom_factor = 0.0035
+
+        # default zoom shows the whole world
+        bbox = mercantile.xy_bounds(0, 0, 0)
+        rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
+        self.text = vispy.scene.visuals.Text('test', parent=self.scene, color='red')
+        self.text.font_size = 24
+        self.text.draw()
+        self.view.camera.set_state(rect=rect)
+        self.last_event = None
         self.freeze()
+
+    def on_mouse_press(self, event):
+        self.last_event = event
+        canvas_pos = event.pos
+        size = self.size
+        rect = self.view.camera.get_state()['rect']
+        x_interp = canvas_pos[0] / size[0]
+        y_interp = canvas_pos[1] / size[1]
+        view_x = rect.left + x_interp * (rect.right - rect.left)
+        view_y = rect.top + y_interp * (rect.bottom - rect.top)
+        logger.info('canvas {}, camera {})'.format(
+            canvas_pos, (view_x, view_y),
+
+        ))
+
+    def get_st_transform(self, z, x, y):
+        """
+        Return the STTransform for the current zoom, x, and y tile.
+        """
+
+        bbox = mercantile.xy_bounds(x, y, z)
+        scale = (bbox.right - bbox.left) / 256
+        scale = scale, scale, 1
+        translate = bbox.left, bbox.bottom, -z
+        logger.info('top %s', bbox.top)
+        return transforms.STTransform(scale=scale, translate=translate)
 
     def add_tile(self, z, x, y):
         """Add tile to the canvas as an image"""
-        # Create the image
+        # Create the image; this should be cached if it's been used recently
+        if (z, x, y) in self._images:
+            # don't double add.
+            # TODO: decide how to tell if the map provider changed.
+            pass
         png = self.tile_provider.get_tile(z, x, y)
-        self.image = image = scene.visuals.Image(png, interpolation='nearest',
-                                                 parent=self.view.scene, method='subdivide')
+        png = np.flip(png, 0)
+        image = scene.visuals.Image(
+            png, interpolation='hanning', parent=self.view.scene, method='subdivide'
+        )
+        transform = self.get_st_transform(z, x, y)
+        image.transform = transform
+        self._images[(z, x, y)] = image
+
+    def remove_tile(self, z, x, y):
+        """Remove a tile from the map"""
+        image = self.images[z, x, y]
+        self.scene.remove_subvisual(image)
+
 
 # Start Program
 class MainWindow(QtWidgets.QMainWindow):
 
     quitting = QtCore.pyqtSignal(int)
-    title = 'Radar Control GUI'
+    title = 'Vispy Tilemaps'
 
     def __init__(self, parent=None):
 
@@ -159,7 +225,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusWidget = statusWidget = QtWidgets.QDockWidget('Status')
         statusWidget.setObjectName('Status')
 
-        self.canvas = canvas = CanvasMap(tile_provider=CartodbDark(), keys='interactive')
+        self.canvas = canvas = CanvasMap(tile_provider=StamenToner(), keys='interactive')
         # self.canvas = canvas = CanvasMap(keys='interactive')
 
         self.vislayout = QtWidgets.QBoxLayout(1)
@@ -195,12 +261,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # self.tabifyDockWidget(consoleDock, logDock)
 
-    def show(self, rememberLayout=True):
+    def show(self):
         super().show()
-
-    def closeEvent(self, event):
-        """Shutdown the Application"""
-        # Autosave on Exit
 
 
 class MinimalJupyterWidget(RichJupyterWidget):
@@ -232,13 +294,11 @@ class SizedRichJupyterWidget(MinimalJupyterWidget):
         s.setHeight(100)
         return s
 
-
 def main():
     import sys
     app = QtWidgets.QApplication(sys.argv)
     win = MainWindow()
-    rememberLayout = 'reset' not in sys.argv
-    win.show(rememberLayout=rememberLayout)
+    win.show()
     app.lastWindowClosed.connect(app.quit)
 
     try:
@@ -247,4 +307,5 @@ def main():
         pass
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     main()
