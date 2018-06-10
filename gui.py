@@ -155,33 +155,23 @@ class CanvasMap(scene.SceneCanvas):
             # should be painted below anything else
             self.marker.set_data(np.array([[0, 0, 1]]))
             return
-        canvas_x, canvas_y = event.pos
-        width, height = self.size
+        elif event.button == 1:
+            # left click
+            canvas_x, canvas_y = event.pos
+            width, height = self.size
 
-        rect = self.view.camera.rect
-        center = self.view.camera.center
-        if width > height:
-            x_scale = width / height
-            y_scale = 1
-        else:
-            x_scale = 1
-            y_scale = height / width
-        scale = rect.width / 2
-        left = center[0] - x_scale * scale
-        right = center[0] + x_scale * scale
-        bottom = center[1] - y_scale * scale
-        top = center[1] + y_scale * scale
+            rect = self.view.camera._real_rect
 
-        x_interp = canvas_x / width
-        y_interp = canvas_y / height
-        view_x = left + x_interp * (right - left)
-        view_y = top + y_interp * (bottom - top)
-        self.text.pos = (view_x, view_y, -10)
-        msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
-        lng, lat = mercantile.lnglat(view_x, view_y)
-        msg = msg.format(lng, lat, view_x, view_y)
-        self.text.text = msg
-        self.marker.set_data(np.array([[view_x, view_y, -10]]), size=self.marker_size)
+            x_interp = canvas_x / width
+            y_interp = canvas_y / height
+            view_x = rect.left + x_interp * (rect.right - rect.left)
+            view_y = rect.top + y_interp * (rect.bottom - rect.top)
+            self.text.pos = (view_x, view_y, -10)
+            msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
+            lng, lat = mercantile.lnglat(view_x, view_y)
+            msg = msg.format(lng, lat, view_x, view_y)
+            self.text.text = msg
+            self.marker.set_data(np.array([[view_x, view_y, -10]]), size=self.marker_size)
 
     def get_st_transform(self, z, x, y):
         """
