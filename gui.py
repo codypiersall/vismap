@@ -144,23 +144,44 @@ class CanvasMap(scene.SceneCanvas):
         self.marker.draw()
         self.view.camera.rect = rect
         self.last_event = None
-        self.size = self.size
+        self.marker_size = 10
         self.freeze()
 
     def on_mouse_press(self, event):
         self.last_event = event
+        if event.button == 2:
+            # right click
+            self.text.text = ''
+            # should be painted below anything else
+            self.marker.set_data(np.array([[0, 0, 1]]))
+            return
         canvas_x, canvas_y = event.pos
         width, height = self.size
 
         rect = self.view.camera.rect
+        center = self.view.camera.center
+        if width > height:
+            x_scale = width / height
+            y_scale = 1
+        else:
+            x_scale = 1
+            y_scale = height / width
+        scale = rect.width / 2
+        left = center[0] - x_scale * scale
+        right = center[0] + x_scale * scale
+        bottom = center[1] - y_scale * scale
+        top = center[1] + y_scale * scale
+
         x_interp = canvas_x / width
         y_interp = canvas_y / height
-        view_x = rect.left + x_interp * (rect.right - rect.left)
-        view_y = rect.top + y_interp * (rect.bottom - rect.top)
-        self.text.pos = (view_x, view_y)
-        msg = '({:d}, {:d}), ({:.3g}, {:.3g})'
-        msg = msg.format(canvas_x, canvas_y, view_x, view_y)
+        view_x = left + x_interp * (right - left)
+        view_y = top + y_interp * (bottom - top)
+        self.text.pos = (view_x, view_y, -10)
+        msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
+        lng, lat = mercantile.lnglat(view_x, view_y)
+        msg = msg.format(lng, lat, view_x, view_y)
         self.text.text = msg
+        self.marker.set_data(np.array([[view_x, view_y, -10]]), size=self.marker_size)
 
     def get_st_transform(self, z, x, y):
         """
@@ -170,7 +191,7 @@ class CanvasMap(scene.SceneCanvas):
         bbox = mercantile.xy_bounds(x, y, z)
         scale = (bbox.right - bbox.left) / 256
         scale = scale, scale, 1
-        translate = bbox.left, bbox.bottom, -z
+        translate = bbox.left, bbox.bottom, -z/100
         logger.info('top %s', bbox.top)
         return transforms.STTransform(scale=scale, translate=translate)
 
