@@ -63,6 +63,7 @@ class TileProvider(abc.ABC):
     def get_tile(self, z, x, y):
         """Return tile as an array of rgb values"""
         url = self.url(z, x, y)
+        logger.debug('retrieving tile from %s', url)
         resp = session.get(url)
         if resp.status_code != 200:
             msg = 'Could not retrieve tile for z={}, x={}, y={}'
@@ -77,7 +78,6 @@ class Stamen(TileProvider):
     def url(self, z, x, y):
         url = 'http://c.tile.stamen.com/{}/{}/{}/{}.png'
         url = url.format(self.map_name, z, x, y)
-        logger.debug('retrieving tile from %s', url)
         return url
 
 class StamenToner(Stamen):
@@ -127,7 +127,7 @@ class CanvasMap(scene.SceneCanvas):
 
         # Set 2D camera (the camera will scale to the contents in the scene)
         self.view.camera = scene.PanZoomCamera(aspect=1)
-        # flip y-axis to have correct aligment
+        # flip y-axis to have correct alignment
         # self.view.camera.flip = (0, 1, 0)
         self.view.camera.set_range()
         # default is 0.007, half of that feels about right
@@ -136,26 +136,31 @@ class CanvasMap(scene.SceneCanvas):
         # default zoom shows the whole world
         bbox = mercantile.xy_bounds(0, 0, 0)
         rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
-        self.text = vispy.scene.visuals.Text('test', parent=self.scene, color='red')
-        self.text.font_size = 24
+        self.text = vispy.scene.visuals.Text('test', parent=self.view.scene, color='red', anchor_x='left')
+        self.text.font_size = 10
         self.text.draw()
-        self.view.camera.set_state(rect=rect)
+        self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
+        self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
+        self.marker.draw()
+        self.view.camera.rect = rect
         self.last_event = None
+        self.size = self.size
         self.freeze()
 
     def on_mouse_press(self, event):
         self.last_event = event
-        canvas_pos = event.pos
-        size = self.size
-        rect = self.view.camera.get_state()['rect']
-        x_interp = canvas_pos[0] / size[0]
-        y_interp = canvas_pos[1] / size[1]
+        canvas_x, canvas_y = event.pos
+        width, height = self.size
+
+        rect = self.view.camera.rect
+        x_interp = canvas_x / width
+        y_interp = canvas_y / height
         view_x = rect.left + x_interp * (rect.right - rect.left)
         view_y = rect.top + y_interp * (rect.bottom - rect.top)
-        logger.info('canvas {}, camera {})'.format(
-            canvas_pos, (view_x, view_y),
-
-        ))
+        self.text.pos = (view_x, view_y)
+        msg = '({:d}, {:d}), ({:.3g}, {:.3g})'
+        msg = msg.format(canvas_x, canvas_y, view_x, view_y)
+        self.text.text = msg
 
     def get_st_transform(self, z, x, y):
         """
