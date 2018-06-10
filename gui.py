@@ -15,7 +15,6 @@ from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
 QtWidgets = QtGui
-DEFAULT_NLOGD_ADDR = 'tcp://10.203.7.171:46000'
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +141,8 @@ class CanvasMap(scene.SceneCanvas):
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
         self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
         self.marker.draw()
+        # TODO: Remove this private variable when it's not needed anymore
+        self._zoom = 0
         self.view.camera.rect = rect
         self.last_event = None
         self.marker_size = 10
@@ -155,8 +156,8 @@ class CanvasMap(scene.SceneCanvas):
             # should be painted below anything else
             self.marker.set_data(np.array([[0, 0, 1]]))
             return
-        elif event.button == 1:
-            # left click
+        elif event.button == 3:
+            # middle click
             canvas_x, canvas_y = event.pos
             width, height = self.size
 
@@ -167,11 +168,13 @@ class CanvasMap(scene.SceneCanvas):
             view_x = rect.left + x_interp * (rect.right - rect.left)
             view_y = rect.top + y_interp * (rect.bottom - rect.top)
             self.text.pos = (view_x, view_y, -10)
+            self.text.order = -100
             msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
             lng, lat = mercantile.lnglat(view_x, view_y)
             msg = msg.format(lng, lat, view_x, view_y)
             self.text.text = msg
             self.marker.set_data(np.array([[view_x, view_y, -10]]), size=self.marker_size)
+            self._add_tiles_for_current_zoom()
 
     def get_st_transform(self, z, x, y):
         """
@@ -181,9 +184,17 @@ class CanvasMap(scene.SceneCanvas):
         bbox = mercantile.xy_bounds(x, y, z)
         scale = (bbox.right - bbox.left) / 256
         scale = scale, scale, 1
-        translate = bbox.left, bbox.bottom, -z/100
-        logger.info('top %s', bbox.top)
+        translate = bbox.left, bbox.bottom, -z
         return transforms.STTransform(scale=scale, translate=translate)
+
+    def _add_tiles_for_current_zoom(self):
+        # rect = self.view.camera._real_rect
+        [[x, y, *_]] = self.text.pos
+        lng, lat = mercantile.lnglat(x, y)
+        zoom = self._zoom
+        tile = mercantile.tile(lng, lat, zoom)
+        print(tile)
+        self.add_tile(tile.z, tile.x, tile.y)
 
     def add_tile(self, z, x, y):
         """Add tile to the canvas as an image"""
@@ -203,7 +214,7 @@ class CanvasMap(scene.SceneCanvas):
 
     def remove_tile(self, z, x, y):
         """Remove a tile from the map"""
-        image = self.images[z, x, y]
+        image = self._images[z, x, y]
         self.scene.remove_subvisual(image)
 
 
@@ -219,10 +230,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(self.title)
         self.resize(1200, 900)
         self.setDockOptions(self.AnimatedDocks | self.AllowNestedDocks | self.AllowTabbedDocks)
-
-        # Create GUI Elements
-        ## Setup MenuBar
-
 
         ## Setup Bottom Dock
         self.__createBottomDockWidgets()
@@ -267,11 +274,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #use dummy controller by default
         self.radar_controller_name = os.environ.get('RADAR_DEV_PLATFORM', 'CPPAR')
 
-        logDock = QtWidgets.QDockWidget('Log')
-        logDock.setObjectName('Log')
-
         self.addDockWidget(Qt.RightDockWidgetArea,   consoleDock,  Qt.Vertical)
-        self.addDockWidget(Qt.BottomDockWidgetArea,  logDock,      Qt.Horizontal)
         self.addDockWidget(Qt.RightDockWidgetArea,   statusWidget, Qt.Horizontal)
         # self.addDockWidget(Qt.BottomDockWidgetArea,  statusWidget, Qt.Horizontal)
 
