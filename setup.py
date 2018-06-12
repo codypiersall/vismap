@@ -4,5 +4,6 @@ install_requires = [
     'mercantile',
     'requests',
     'requests_cache',
-    'pypng',
+    'pillow',
+
 ]

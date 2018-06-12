@@ -2,6 +2,7 @@ import abc
 import logging
 import os
 
+
 import mercantile
 import numpy as np
 import vispy
@@ -69,8 +70,10 @@ class TileProvider(abc.ABC):
             msg = msg.format(z, x, y)
             raise ValueError(msg)
         img_bytes = resp.content
-        rgb = read_png_bytes(img_bytes)
-        return rgb
+        import io
+        import PIL.Image
+        img = PIL.Image.open(io.BytesIO(img_bytes))
+        return img
 
 
 class Stamen(TileProvider):
@@ -137,6 +140,7 @@ class CanvasMap(scene.SceneCanvas):
         rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
         self.text = vispy.scene.visuals.Text('test', parent=self.view.scene, color='red', anchor_x='left')
         self.text.font_size = 10
+        self.text.order = 1
         self.text.draw()
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
         self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
@@ -154,7 +158,7 @@ class CanvasMap(scene.SceneCanvas):
             # right click
             self.text.text = ''
             # should be painted below anything else
-            self.marker.set_data(np.array([[0, 0, 1]]))
+            self.marker.visible = False
             return
         elif event.button == 3:
             # middle click
@@ -167,13 +171,13 @@ class CanvasMap(scene.SceneCanvas):
             y_interp = canvas_y / height
             view_x = rect.left + x_interp * (rect.right - rect.left)
             view_y = rect.top + y_interp * (rect.bottom - rect.top)
-            self.text.pos = (view_x, view_y, -10)
-            self.text.order = -100
+            self.text.pos = (view_x, view_y, -1000)
             msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
             lng, lat = mercantile.lnglat(view_x, view_y)
             msg = msg.format(lng, lat, view_x, view_y)
             self.text.text = msg
-            self.marker.set_data(np.array([[view_x, view_y, -10]]), size=self.marker_size)
+            self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
+            self.marker.visible = True
             self._add_tiles_for_current_zoom()
 
     def get_st_transform(self, z, x, y):
@@ -249,6 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
         statusWidget.setObjectName('Status')
 
         self.canvas = canvas = CanvasMap(tile_provider=StamenToner(), keys='interactive')
+        # self.canvas = canvas = CanvasMap(tile_provider=CartodbDark(), keys='interactive')
         # self.canvas = canvas = CanvasMap(keys='interactive')
 
         self.vislayout = QtWidgets.QBoxLayout(1)
