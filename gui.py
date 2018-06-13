@@ -205,8 +205,7 @@ class CanvasMap(scene.SceneCanvas):
         # Create the image; this should be cached if it's been used recently
         if (z, x, y) in self._images:
             # don't double add.
-            # TODO: decide how to tell if the map provider changed.
-            pass
+            return
         png = self.tile_provider.get_tile(z, x, y)
         png = np.flip(png, 0)
         image = scene.visuals.Image(
@@ -219,7 +218,9 @@ class CanvasMap(scene.SceneCanvas):
     def remove_tile(self, z, x, y):
         """Remove a tile from the map"""
         image = self._images[z, x, y]
-        self.scene.remove_subvisual(image)
+        # TODO: Is this the right way to remove a node from a scene?
+        image.parent = None
+        del self._images[z, x, y]
 
 
 # Start Program
