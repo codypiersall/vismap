@@ -225,12 +225,24 @@ class CanvasMap(scene.SceneCanvas):
         return transforms.STTransform(scale=scale, translate=translate)
 
     def _add_tiles_for_current_zoom(self):
-        # rect = self.view.camera._real_rect
-        [[x, y, *_]] = self.text.pos
-        lng, lat = mercantile.lnglat(x, y)
-        tile = mercantile.tile(lng, lat, self.best_zoom_level)
-        print(tile)
-        self.add_tile(tile.z, tile.x, tile.y)
+        """
+        Fill the current view with tiles
+        """
+        for im in list(self._images):
+            self.remove_tile(*im)
+        rect = self.view.camera._real_rect
+        z = self.best_zoom_level
+        x0, y0 = rect.left, rect.top
+        lng0, lat0 = mercantile.lnglat(x0, y0)
+        tile0 = mercantile.tile(lng0, lat0, z)
+
+        x1, y1 = rect.right, rect.bottom
+        lng1, lat1 = mercantile.lnglat(x1, y1)
+        tile1 = mercantile.tile(lng1, lat1, z)
+
+        for x in range(tile0.x, tile1.x + 1):
+            for y in range(tile0.y, tile1.y + 1):
+                self.add_tile(z, x, y)
 
     def add_tile(self, z, x, y):
         """Add tile to the canvas as an image"""
