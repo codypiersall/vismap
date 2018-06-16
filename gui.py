@@ -123,4 +123,6 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
+    l = logging.getLogger('PIL.PngImagePlugin')
+    l.setLevel(logging.WARNING)
     main()
