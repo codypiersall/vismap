@@ -4,8 +4,11 @@ Vispy canvas that lets you do tile maps
 
 
 import abc
+import enum
 import logging
 import io
+import time
+import threading
 
 import mercantile
 import numpy as np
@@ -18,6 +21,16 @@ import PIL.Image
 logger = logging.getLogger(__name__)
 
 session = CachedSession(cache_name='tiles')
+
+
+class OnMissing(enum.Enum):
+    """What action to take whenever a tile is missing"""
+    # raise an exception
+    RAISE = 0
+    # ignore the exception and return None
+    IGNORE = 1
+    # return a picture of a cat.
+    REPLACE_WITH_CAT = 2
 
 
 class TileNotFoundError(Exception):
@@ -45,9 +58,9 @@ class TileProvider(abc.ABC):
             raise TileNotFoundError(msg)
         img_bytes = resp.content
         img = PIL.Image.open(io.BytesIO(img_bytes))
-        rgb = np.array(img)
-        rgb = np.flip(rgb, 0)
-        return rgb
+        rgba = img.convert('RGBA')
+        rgba = np.flip(rgba, 0)
+        return rgba
 
 
 class Stamen(TileProvider):
@@ -90,10 +103,8 @@ class CanvasMap(scene.SceneCanvas):
         # Set up a viewbox to display the image with interactive pan/zoom
         self.unfreeze()
         self.view = self.central_widget.add_view()
-        self.tile_provider = tile_provider
+        self._tile_provider = tile_provider
 
-        # mapping from (z, x, y) -> visual
-        self._images = {}
         # cal factor done with math.  At zoom level 0, the mercator units / pixel
         # is 156543.  So our zom calibration factor needs to be based on that
         #
@@ -102,11 +113,11 @@ class CanvasMap(scene.SceneCanvas):
         # Add 0.5 so that the zoom level is crisp in the middle of when it's loaded.
         self.zoom_cal = 17.256199785269995 + 0.5
 
-        z = 0
-        self.add_tile(0, 0, 0, replace_missing_with_cat=True)
+        # self.add_tile(0, 0, 0)
+        z = 1
         for x in range(2**z):
             for y in range(2**z):
-                self.add_tile(z, x, y, replace_missing_with_cat=True)
+                self.add_tile(z, x, y)
 
         # Set 2D camera (the camera will scale to the contents in the scene)
         self.view.camera = scene.PanZoomCamera(aspect=1)
@@ -126,12 +137,19 @@ class CanvasMap(scene.SceneCanvas):
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
         self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
         self.marker.draw()
-        # TODO: Remove this private variable when it's not needed anymore
-        self._zoom = 0
         self.view.camera.rect = rect
         self.last_event = None
         self.marker_size = 10
         self.freeze()
+
+    @property
+    def tile_provider(self):
+        return self._tile_provider
+
+    @tile_provider.setter
+    def tile_provider(self, provider):
+        self._tile_provider = provider
+        self._add_tiles_for_current_zoom()
 
     def on_mouse_press(self, event):
         self.last_event = event
@@ -159,7 +177,9 @@ class CanvasMap(scene.SceneCanvas):
             self.text.text = msg
             self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
             self.marker.visible = True
-            self._add_tiles_for_current_zoom()
+            t = threading.Thread(target=self._add_tiles_for_current_zoom)
+            t.start()
+
 
     @property
     def mercator_scale(self):
@@ -204,54 +224,80 @@ class CanvasMap(scene.SceneCanvas):
             return -self._web_mercator_bounds + 1
         return y
 
-    def _add_tiles_for_current_zoom(self):
+    @property
+    def real_rect(self):
+        """Get the camera's real rectangle"""
+        return self.view.camera._real_rect
+
+    @property
+    def current_bounds(self):
+        """Return the tile index bounds of the current view.
+
+        Returns a tuple of two mercantile.Tile instances
         """
-        Fill the current view with tiles
-        """
-        for im in list(self._images):
-            self.remove_tile(im)
-        rect = self.view.camera._real_rect
+        rect = self.real_rect
         z = self.best_zoom_level
+
         x0, y0 = rect.left, rect.top
         y0 = self._fix_y(y0)
         lng0, lat0 = mercantile.lnglat(x0, y0)
-        tile0 = mercantile.tile(lng0, lat0, z, True)
-        print(rect, lng0, lat0, tile0)
+        tile0 = mercantile.tile(lng0, lat0, z)
 
         x1, y1 = rect.right, rect.bottom
         y1 = self._fix_y(y1)
         lng1, lat1 = mercantile.lnglat(x1, y1)
         tile1 = mercantile.tile(lng1, lat1, z)
-        big_rgb = self._merge_tiles(z, tile0.x, tile0.y, tile1.x, tile1.y)
-        image = self._add_rgb_as_image(big_rgb, z, tile0.x, tile1.y)
-        self._images[(z, x0, x1, y0, y1)] = image
-        return big_rgb
+        return tile0, tile1
+
+    def _add_tiles_for_current_zoom(self):
+        """
+        Fill the current view with tiles
+        """
+        # don't remove until all the tiles to add are added.
+        to_remove = self.scene_images
+        z = self.best_zoom_level
+        tile0, tile1 = self.current_bounds
+        # two extra tiles for smooth panning
+        x0 = tile0.x - 2
+        x1 = tile1.x + 2
+        y0 = tile0.y - 2
+        y1 = tile1.y + 2
+
+        if y0 < 0:
+            y0 = 0
+        if y1 > 2**z - 1:
+            y1 = 2**z - 1
+
+
+        big_rgb = self._merge_tiles(z, x0, y0, x1, y1)
+        self._add_rgb_as_image(big_rgb, z, x0, y1)
+        for im in to_remove:
+            im.parent = None
+
+    @property
+    def scene_images(self):
+        """Return the images that are part of the scene graph.  If the code
+        is bug-free, the images here and the values of self._images should be equal.
+        """
+        c = self.view.children[0].children
+        return [x for x in c if isinstance(x, scene.visuals.Image)]
 
     def _merge_tiles(self, z, x0, y0, x1, y1):
         """Merge range of tiles to form a single image."""
         rows = []
-        import time
-        print(x0, y0, x1, y1)
         start = time.time()
         for x in range(x0, x1 + 1):
             row = []
             for y in range(y1, y0 - 1, -1):
                 # account for wrapping around the world...
-                row.append(self.get_tile(z, x, y,
-                                         replace_missing_with_cat=True))
+                row.append(self.get_tile(z, x, y, missing='ignore'))
             rows.append(np.concatenate(row))
         new_img = np.concatenate(rows, 1)
         elapsed = time.time() - start
         logger.debug('took %.2f seconds', elapsed)
-        # new_img = np.array(cols)
-        # x, y, *_ = new_img.shape
-        # new_img = new_img.reshape(256*x, 256*y, 4)
-        self.unfreeze()
-        self.new_img = new_img
-        self.freeze()
         return new_img
 
-    def get_tile(self, z, x, y, replace_missing_with_cat=False):
+    def get_tile(self, z, x, y, missing=OnMissing.RAISE):
         """Return RGB array of tile at specified zoom, x, and y.
 
         If the tile for the specified zoom, x, and y cannot be found, raises a
@@ -261,7 +307,11 @@ class CanvasMap(scene.SceneCanvas):
         try:
             rgb = self.tile_provider.get_tile(z, x, y)
         except TileNotFoundError:
-            if replace_missing_with_cat:
+            if missing == OnMissing.RAISE:
+                raise
+            elif missing == OnMissing.IGNORE:
+                return
+            elif missing == OnMissing.REPLACE_WITH_CAT:
                 logger.warning('replacing %s with a cat.  Meow!', (z, x, y))
                 rgb = self._get_cat()
             else:
@@ -288,27 +338,12 @@ class CanvasMap(scene.SceneCanvas):
         image.transform = transform
         return image
 
-    def add_tile(self, z, x, y, replace_missing_with_cat=False):
+    def add_tile(self, z, x, y, missing=OnMissing.RAISE):
         """Add tile to the canvas as an image.
 
         If the tile for the specified zoom, x, and y cannot be found, raises a
-        TileNotFoundError. Unless replace_missing_with_cat == True; then, return
-        a picture of a cat.
+        TileNotFoundError.
         """
-        # Create the image; this should be cached if it's been used recently
-        if (z, x, y) in self._images:
-            # don't double add.
-            return
-        rgb = self.get_tile(x, y, z, replace_missing_with_cat)
-        self.last_rgb = rgb
-        image = self._add_rgb_as_image(rgb, z, x, y)
-        self._images[(z, x, y)] = image
-
-    def remove_tile(self, location):
-        """Remove a tile from the map"""
-        image = self._images[location]
-        # TODO: Is this the right way to remove a node from a scene?
-        image.parent = None
-        del self._images[location]
-
+        rgb = self.get_tile(z, x, y, missing)
+        self._add_rgb_as_image(rgb, z, x, y)
 
