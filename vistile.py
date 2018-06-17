@@ -23,6 +23,36 @@ logger = logging.getLogger(__name__)
 session = CachedSession(cache_name='tiles')
 
 
+class TileCamera(scene.PanZoomCamera):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # keep track of the time things were handled to make sure we don't
+        # try to do too many events
+        self.last_handled = 0.0
+        self.min_interval = 0.1
+
+    def viewbox_mouse_event(self, event):
+        super().viewbox_mouse_event(event)
+        # do this in a not terrible way...
+        now = time.time()
+        if now > self.last_handled + self.min_interval:
+            needs_update = False
+            if event.type == 'mouse_wheel':
+                needs_update = True
+            elif event.type == 'mouse_move':
+                # conditions taken from PanZoomCamera source code
+                modifiers = event.mouse_event.modifiers
+                if 1 in event.buttons and not modifiers:
+                    # translating; need to update
+                    needs_update = True
+                elif 2 in event.buttons and not modifiers:
+                    needs_update = True
+            if needs_update:
+                self.last_handled = now
+                self.canvas._add_tiles_for_current_zoom()
+
+
 class OnMissing(enum.Enum):
     """What action to take whenever a tile is missing"""
     # raise an exception
@@ -120,7 +150,7 @@ class CanvasMap(scene.SceneCanvas):
                 self.add_tile(z, x, y)
 
         # Set 2D camera (the camera will scale to the contents in the scene)
-        self.view.camera = scene.PanZoomCamera(aspect=1)
+        self.view.camera = TileCamera(aspect=1)
         # flip y-axis to have correct alignment
         # self.view.camera.flip = (0, 1, 0)
         self.view.camera.set_range()
@@ -177,9 +207,8 @@ class CanvasMap(scene.SceneCanvas):
             self.text.text = msg
             self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
             self.marker.visible = True
-            t = threading.Thread(target=self._add_tiles_for_current_zoom)
-            t.start()
-
+            # t = threading.Thread(target=self._add_tiles_for_current_zoom)
+            # t.start()
 
     @property
     def mercator_scale(self):
@@ -267,7 +296,6 @@ class CanvasMap(scene.SceneCanvas):
             y0 = 0
         if y1 > 2**z - 1:
             y1 = 2**z - 1
-
 
         big_rgb = self._merge_tiles(z, x0, y0, x1, y1)
         self._add_rgb_as_image(big_rgb, z, x0, y1)
