@@ -7,6 +7,7 @@ import abc
 import enum
 import logging
 import io
+import queue
 import time
 import threading
 
@@ -50,7 +51,7 @@ class TileCamera(scene.PanZoomCamera):
                     needs_update = True
             if needs_update:
                 self.last_handled = now
-                self.canvas._add_tiles_for_current_zoom()
+                self.canvas.add_tiles_for_current_zoom()
 
 
 class OnMissing(enum.Enum):
@@ -143,12 +144,6 @@ class CanvasMap(scene.SceneCanvas):
         # Add 0.5 so that the zoom level is crisp in the middle of when it's loaded.
         self.zoom_cal = 17.256199785269995 + 0.5
 
-        # self.add_tile(0, 0, 0)
-        z = 1
-        for x in range(2**z):
-            for y in range(2**z):
-                self.add_tile(z, x, y)
-
         # Set 2D camera (the camera will scale to the contents in the scene)
         self.view.camera = TileCamera(aspect=1)
         # flip y-axis to have correct alignment
@@ -170,7 +165,38 @@ class CanvasMap(scene.SceneCanvas):
         self.view.camera.rect = rect
         self.last_event = None
         self.marker_size = 10
+        self.queue = queue.Queue()
+        self.worker_thread = threading.Thread(
+            target=self.tile_controller,
+            args=(self.queue,),
+            daemon=True,
+        )
+        self.worker_thread.start()
+
+        z = 1
+        for x in range(2**z):
+            for y in range(2**z):
+                self.add_tile(z, x, y)
         self.freeze()
+
+    def tile_controller(self, queue):
+        """Background thread for doing the right thing with tiles"""
+        while True:
+            try:
+                data = queue.get()
+                if data is None:
+                    break
+                cmd = data['cmd']
+                if cmd == 'call_method':
+                    method = getattr(self, data['name'])
+                    args = data.get('args', [])
+                    kwargs = data.get('kwargs', {})
+                    method(*args, **kwargs)
+            except:
+                # want to keep the loop going
+                msg = 'tile_controller thread error on data {}'
+                msg = msg.format(data)
+                logger.exception(msg)
 
     @property
     def tile_provider(self):
@@ -179,7 +205,7 @@ class CanvasMap(scene.SceneCanvas):
     @tile_provider.setter
     def tile_provider(self, provider):
         self._tile_provider = provider
-        self._add_tiles_for_current_zoom()
+        self.add_tiles_for_current_zoom()
 
     def on_mouse_press(self, event):
         self.last_event = event
@@ -207,8 +233,6 @@ class CanvasMap(scene.SceneCanvas):
             self.text.text = msg
             self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
             self.marker.visible = True
-            # t = threading.Thread(target=self._add_tiles_for_current_zoom)
-            # t.start()
 
     @property
     def mercator_scale(self):
@@ -278,14 +302,17 @@ class CanvasMap(scene.SceneCanvas):
         tile1 = mercantile.tile(lng1, lat1, z)
         return tile0, tile1
 
-    def _add_tiles_for_current_zoom(self):
+    def _add_tiles_for_zoom(self, zoom_level=None, bounds=None):
         """
-        Fill the current view with tiles
         """
+        if zoom_level is None:
+            zoom_level = self.best_zoom_level
+        if bounds is None:
+            bounds = self.current_bounds
         # don't remove until all the tiles to add are added.
         to_remove = self.scene_images
-        z = self.best_zoom_level
-        tile0, tile1 = self.current_bounds
+        z = zoom_level
+        tile0, tile1 = bounds
         # two extra tiles for smooth panning
         x0 = tile0.x - 2
         x1 = tile1.x + 2
@@ -301,6 +328,16 @@ class CanvasMap(scene.SceneCanvas):
         self._add_rgb_as_image(big_rgb, z, x0, y1)
         for im in to_remove:
             im.parent = None
+
+    def add_tiles_for_current_zoom(self):
+        """
+        Fill the current view with tiles
+        """
+        self.queue.put({
+            'cmd': 'call_method',
+            'name': '_add_tiles_for_zoom',
+            'args': [self.best_zoom_level, self.current_bounds]
+        })
 
     @property
     def scene_images(self):
@@ -366,12 +403,19 @@ class CanvasMap(scene.SceneCanvas):
         image.transform = transform
         return image
 
+    def _add_tile(self, z, x, y, missing=OnMissing.RAISE):
+        rgb = self.get_tile(z, x, y, missing)
+        self._add_rgb_as_image(rgb, z, x, y)
+
     def add_tile(self, z, x, y, missing=OnMissing.RAISE):
         """Add tile to the canvas as an image.
 
         If the tile for the specified zoom, x, and y cannot be found, raises a
         TileNotFoundError.
         """
-        rgb = self.get_tile(z, x, y, missing)
-        self._add_rgb_as_image(rgb, z, x, y)
+        self.queue.put({
+            'cmd': 'call_method',
+            'name': '_add_tile',
+            'args': [z, x, y, missing],
+        })
 
