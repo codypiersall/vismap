@@ -35,7 +35,10 @@ class TileCamera(scene.PanZoomCamera):
 
     def viewbox_mouse_event(self, event):
         super().viewbox_mouse_event(event)
-        # do this in a not terrible way...
+        # if the tile command queue has anything in it, let's just get the
+        # heck out of here; this prevents a hugely unresponsive deal.
+        if not self.canvas.queue.empty():
+            return
         now = time.time()
         if now > self.last_handled + self.min_interval:
             needs_update = False
@@ -70,9 +73,6 @@ class TileNotFoundError(Exception):
 
 class TileProvider(abc.ABC):
     """Class which knows how to get tiles, given an x,y,z value"""
-    def __init__(self):
-        pass
-
     @abc.abstractmethod
     def url(self, z, x, y):
         pass
@@ -143,6 +143,7 @@ class CanvasMap(scene.SceneCanvas):
         # (dividing by 256 because that is the number of pixels per tile)
         # Add 0.5 so that the zoom level is crisp in the middle of when it's loaded.
         self.zoom_cal = 17.256199785269995 + 0.5
+        self._images = {}
 
         # Set 2D camera (the camera will scale to the contents in the scene)
         self.view.camera = TileCamera(aspect=1)
@@ -176,7 +177,7 @@ class CanvasMap(scene.SceneCanvas):
         z = 1
         for x in range(2**z):
             for y in range(2**z):
-                self.add_tile(z, x, y)
+                self._add_tile(z, x, y)
         self.freeze()
 
     def tile_controller(self, queue):
@@ -309,8 +310,6 @@ class CanvasMap(scene.SceneCanvas):
             zoom_level = self.best_zoom_level
         if bounds is None:
             bounds = self.current_bounds
-        # don't remove until all the tiles to add are added.
-        to_remove = self.scene_images
         z = zoom_level
         tile0, tile1 = bounds
         # two extra tiles for smooth panning
@@ -324,10 +323,17 @@ class CanvasMap(scene.SceneCanvas):
         if y1 > 2**z - 1:
             y1 = 2**z - 1
 
-        big_rgb = self._merge_tiles(z, x0, y0, x1, y1)
-        self._add_rgb_as_image(big_rgb, z, x0, y1)
-        for im in to_remove:
-            im.parent = None
+        for x in range(x0, x1 + 1):
+            for y in range(y0, y1 + 1):
+                self._add_tile(z, x, y)
+
+        for z, x, y in list(self._images):
+            if z != zoom_level:
+                self.remove_tile(z, x, y)
+
+    def remove_tile(self, z, x, y):
+        im = self._images.pop((z, x, y))
+        im.parent = None
 
     def add_tiles_for_current_zoom(self):
         """
@@ -404,8 +410,15 @@ class CanvasMap(scene.SceneCanvas):
         return image
 
     def _add_tile(self, z, x, y, missing=OnMissing.RAISE):
+        if (z, x, y) in self._images:
+            im = self._images[z, x, y]
+            if im not in self.scene_images:
+                logger.error('_images dict out of sync with scene children')
+            else:
+                return
         rgb = self.get_tile(z, x, y, missing)
-        self._add_rgb_as_image(rgb, z, x, y)
+        im = self._add_rgb_as_image(rgb, z, x, y)
+        self._images[z, x, y] = im
 
     def add_tile(self, z, x, y, missing=OnMissing.RAISE):
         """Add tile to the canvas as an image.
