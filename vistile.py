@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 session = CachedSession(cache_name='tiles')
 
 
+lock = threading.Lock()
+
 class TileCamera(scene.PanZoomCamera):
 
     def __init__(self, *args, **kwargs):
@@ -37,7 +39,8 @@ class TileCamera(scene.PanZoomCamera):
     def viewbox_mouse_event(self, event):
         if event.handled:
             return
-        super().viewbox_mouse_event(event)
+        with lock:
+            super().viewbox_mouse_event(event)
         # if the tile command queue has anything in it, let's just get the
         # heck out of here; this prevents a hugely unresponsive deal.
         if not self.canvas.queue.empty():
@@ -414,7 +417,6 @@ class CanvasMap(scene.SceneCanvas):
             method='subdivide',
         )
         transform = self.get_st_transform(z, x, y)
-
         image.transform = transform
         return image
 
@@ -426,7 +428,8 @@ class CanvasMap(scene.SceneCanvas):
             else:
                 return
         rgb = self.get_tile(z, x, y, missing)
-        im = self._add_rgb_as_image(rgb, z, x, y)
+        with lock:
+            im = self._add_rgb_as_image(rgb, z, x, y)
         self._images[z, x, y] = im
 
     def add_tile(self, z, x, y, missing=OnMissing.RAISE):
