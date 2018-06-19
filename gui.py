@@ -8,7 +8,7 @@ from PyQt4.QtCore import Qt
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
-from vistile import CanvasMap, StamenToner
+from vistile import CanvasMap, StamenToner, CartodbDark, StamenWatercolor
 
 QtWidgets = QtGui
 
@@ -43,9 +43,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusWidget = statusWidget = QtWidgets.QDockWidget('Status')
         statusWidget.setObjectName('Status')
 
-        self.canvas = canvas = CanvasMap(tile_provider=StamenToner(), keys='interactive')
-        # self.canvas = canvas = CanvasMap(tile_provider=CartodbDark(), keys='interactive')
-        # self.canvas = canvas = CanvasMap(keys='interactive')
+        self.canvas = canvas = CanvasMap(tile_provider=StamenToner(),
+                                         keys='interactive')
 
         self.vislayout = QtWidgets.QBoxLayout(1)
         self.vislayout.addWidget(self.canvas.native)
@@ -122,7 +121,7 @@ def main():
         pass
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     l = logging.getLogger('PIL.PngImagePlugin')
     l.setLevel(logging.WARNING)
     main()
