@@ -5,6 +5,7 @@ Vispy canvas that lets you do tile maps
 
 import abc
 import enum
+import functools
 import logging
 import io
 import queue
@@ -31,9 +32,11 @@ class TileCamera(scene.PanZoomCamera):
         # keep track of the time things were handled to make sure we don't
         # try to do too many events
         self.last_handled = 0.0
-        self.min_interval = 0.1
+        self.min_interval = 0.05
 
     def viewbox_mouse_event(self, event):
+        if event.handled:
+            return
         super().viewbox_mouse_event(event)
         # if the tile command queue has anything in it, let's just get the
         # heck out of here; this prevents a hugely unresponsive deal.
@@ -323,16 +326,22 @@ class CanvasMap(scene.SceneCanvas):
         if y1 > 2**z - 1:
             y1 = 2**z - 1
 
-        for x in range(x0, x1 + 1):
-            for y in range(y0, y1 + 1):
-                self._add_tile(z, x, y)
+        # for x in range(x0, x1 + 1):
+        #     for y in range(y0, y1 + 1):
+        #         self._add_tile(z, x, y)
 
-        for z, x, y in list(self._images):
+        if (z, x0, x1, y0, y1) not in self._images:
+            rgb = self._merge_tiles(z, x0, y0, x1, y1)
+            image = self._add_rgb_as_image(rgb, z, x0, y1)
+            self._images[z, x0, x1, y0, y1] = image
+
+        for key in list(self._images):
+            z = key[0]
             if z != zoom_level:
-                self.remove_tile(z, x, y)
+                self.remove_tile(key)
 
-    def remove_tile(self, z, x, y):
-        im = self._images.pop((z, x, y))
+    def remove_tile(self, key):
+        im = self._images.pop(key)
         im.parent = None
 
     def add_tiles_for_current_zoom(self):
@@ -361,11 +370,10 @@ class CanvasMap(scene.SceneCanvas):
             row = []
             for y in range(y1, y0 - 1, -1):
                 # account for wrapping around the world...
-                row.append(self.get_tile(z, x, y, missing='ignore'))
+                row.append(self.get_tile(z, x, y, missing=OnMissing.REPLACE_WITH_CAT))
             rows.append(np.concatenate(row))
         new_img = np.concatenate(rows, 1)
         elapsed = time.time() - start
-        logger.debug('took %.2f seconds', elapsed)
         return new_img
 
     def get_tile(self, z, x, y, missing=OnMissing.RAISE):
@@ -389,6 +397,7 @@ class CanvasMap(scene.SceneCanvas):
                 raise
         return rgb
 
+    @functools.lru_cache(maxsize=1)
     def _get_cat(self):
         with open('cat-killer-256x256.png', 'rb') as f:
             im = PIL.Image.open(f)
