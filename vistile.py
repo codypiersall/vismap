@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 session = CachedSession(cache_name='tiles')
 
 
+# this lock is needed any time
 lock = threading.Lock()
 
 class TileCamera(scene.PanZoomCamera):
@@ -215,31 +216,32 @@ class CanvasMap(scene.SceneCanvas):
         self.add_tiles_for_current_zoom()
 
     def on_mouse_press(self, event):
-        self.last_event = event
-        if event.button == 2:
-            # right click
-            self.text.text = ''
-            # should be painted below anything else
-            self.marker.visible = False
-            return
-        elif event.button == 3:
-            # middle click
-            canvas_x, canvas_y = event.pos
-            width, height = self.size
+        with lock:
+            self.last_event = event
+            if event.button == 2:
+                # right click
+                self.text.text = ''
+                # should be painted below anything else
+                self.marker.visible = False
+                return
+            elif event.button == 3:
+                # middle click
+                canvas_x, canvas_y = event.pos
+                width, height = self.size
 
-            rect = self.view.camera._real_rect
+                rect = self.view.camera._real_rect
 
-            x_interp = canvas_x / width
-            y_interp = canvas_y / height
-            view_x = rect.left + x_interp * (rect.right - rect.left)
-            view_y = rect.top + y_interp * (rect.bottom - rect.top)
-            self.text.pos = (view_x, view_y, -1000)
-            msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
-            lng, lat = mercantile.lnglat(view_x, view_y)
-            msg = msg.format(lng, lat, view_x, view_y)
-            self.text.text = msg
-            self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
-            self.marker.visible = True
+                x_interp = canvas_x / width
+                y_interp = canvas_y / height
+                view_x = rect.left + x_interp * (rect.right - rect.left)
+                view_y = rect.top + y_interp * (rect.bottom - rect.top)
+                self.text.pos = (view_x, view_y, -1000)
+                msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
+                lng, lat = mercantile.lnglat(view_x, view_y)
+                msg = msg.format(lng, lat, view_x, view_y)
+                self.text.text = msg
+                self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
+                self.marker.visible = True
 
     @property
     def mercator_scale(self):
@@ -319,10 +321,10 @@ class CanvasMap(scene.SceneCanvas):
         z = zoom_level
         tile0, tile1 = bounds
         # two extra tiles for smooth panning
-        x0 = tile0.x - 2
-        x1 = tile1.x + 2
-        y0 = tile0.y - 2
-        y1 = tile1.y + 2
+        x0 = tile0.x - 1
+        x1 = tile1.x + 1
+        y0 = tile0.y - 1
+        y1 = tile1.y + 1
 
         if y0 < 0:
             y0 = 0
@@ -342,10 +344,12 @@ class CanvasMap(scene.SceneCanvas):
             z = key[0]
             if z != zoom_level:
                 self.remove_tile(key)
+        assert len(self._images) == len(self.scene_images)
 
     def remove_tile(self, key):
         im = self._images.pop(key)
-        im.parent = None
+        with lock:
+            im.parent = None
 
     def add_tiles_for_current_zoom(self):
         """
@@ -362,8 +366,9 @@ class CanvasMap(scene.SceneCanvas):
         """Return the images that are part of the scene graph.  If the code
         is bug-free, the images here and the values of self._images should be equal.
         """
-        c = self.view.children[0].children
-        return [x for x in c if isinstance(x, scene.visuals.Image)]
+        with lock:
+            c = self.view.children[0].children
+            return [x for x in c if isinstance(x, scene.visuals.Image)]
 
     def _merge_tiles(self, z, x0, y0, x1, y1):
         """Merge range of tiles to form a single image."""
@@ -376,7 +381,6 @@ class CanvasMap(scene.SceneCanvas):
                 row.append(self.get_tile(z, x, y, missing=OnMissing.REPLACE_WITH_CAT))
             rows.append(np.concatenate(row))
         new_img = np.concatenate(rows, 1)
-        elapsed = time.time() - start
         return new_img
 
     def get_tile(self, z, x, y, missing=OnMissing.RAISE):
@@ -410,14 +414,15 @@ class CanvasMap(scene.SceneCanvas):
 
     def _add_rgb_as_image(self, rgb, z, x, y):
         """Create image, and apply appropriate transform to it."""
-        image = scene.visuals.Image(
-            rgb,
-            interpolation='hanning',
-            parent=self.view.scene,
-            method='subdivide',
-        )
-        transform = self.get_st_transform(z, x, y)
-        image.transform = transform
+        with lock:
+            image = scene.visuals.Image(
+                rgb,
+                interpolation='hanning',
+                parent=self.view.scene,
+                method='subdivide',
+            )
+            transform = self.get_st_transform(z, x, y)
+            image.transform = transform
         return image
 
     def _add_tile(self, z, x, y, missing=OnMissing.RAISE):
@@ -428,8 +433,7 @@ class CanvasMap(scene.SceneCanvas):
             else:
                 return
         rgb = self.get_tile(z, x, y, missing)
-        with lock:
-            im = self._add_rgb_as_image(rgb, z, x, y)
+        im = self._add_rgb_as_image(rgb, z, x, y)
         self._images[z, x, y] = im
 
     def add_tile(self, z, x, y, missing=OnMissing.RAISE):
