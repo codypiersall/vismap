@@ -1,0 +1,9 @@
+*~
+*.swp
+# requests cache database
+*.sqlite
+__pycache__
+*.pyc
+
+# pycharm
+.idea

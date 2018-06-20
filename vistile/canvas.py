@@ -3,11 +3,9 @@ Vispy canvas that lets you do tile maps
 """
 
 
-import abc
 import enum
 import functools
 import logging
-import io
 import queue
 import time
 import threading
@@ -17,25 +15,19 @@ import numpy as np
 import vispy
 from vispy import scene
 import vispy.visuals.transforms as transforms
-from requests_cache import CachedSession
 import PIL.Image
+
+from .tile_providers import StamenTonerInverted
 
 logger = logging.getLogger(__name__)
 
-session = CachedSession(cache_name='tiles')
-
-
-# this lock is needed any time
+# this lock is needed any time the scene graph is touched, or nodes of the
+# scene graph are transformed.
+# TODO: There seems to be a bad interaction between the mouse-wheel zoom and
+#       adding new tiles.  Right-click zoom works fine though...
 lock = threading.Lock()
 
 class TileCamera(scene.PanZoomCamera):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # keep track of the time things were handled to make sure we don't
-        # try to do too many events
-        self.last_handled = 0.0
-        self.min_interval = 0.05
 
     def viewbox_mouse_event(self, event):
         if event.handled:
@@ -46,22 +38,21 @@ class TileCamera(scene.PanZoomCamera):
         # heck out of here; this prevents a hugely unresponsive deal.
         if not self.canvas.queue.empty():
             return
-        now = time.time()
-        if now > self.last_handled + self.min_interval:
-            needs_update = False
-            if event.type == 'mouse_wheel':
+        # figure out if we need an update; if the mouse is moving, but no key
+        # is held down, we don't need to update.
+        needs_update = False
+        if event.type == 'mouse_wheel':
+            needs_update = True
+        elif event.type == 'mouse_move':
+            # conditions taken from PanZoomCamera source code
+            modifiers = event.mouse_event.modifiers
+            if 1 in event.buttons and not modifiers:
+                # translating; need to update
                 needs_update = True
-            elif event.type == 'mouse_move':
-                # conditions taken from PanZoomCamera source code
-                modifiers = event.mouse_event.modifiers
-                if 1 in event.buttons and not modifiers:
-                    # translating; need to update
-                    needs_update = True
-                elif 2 in event.buttons and not modifiers:
-                    needs_update = True
-            if needs_update:
-                self.last_handled = now
-                self.canvas.add_tiles_for_current_zoom()
+            elif 2 in event.buttons and not modifiers:
+                needs_update = True
+        if needs_update:
+            self.canvas.add_tiles_for_current_zoom()
 
 
 class OnMissing(enum.Enum):
@@ -74,69 +65,12 @@ class OnMissing(enum.Enum):
     REPLACE_WITH_CAT = 2
 
 
-class TileNotFoundError(Exception):
-    pass
-
-
-class TileProvider(abc.ABC):
-    """Class which knows how to get tiles, given an x,y,z value"""
-    @abc.abstractmethod
-    def url(self, z, x, y):
-        pass
-
-    def get_tile(self, z, x, y):
-        """Return tile as an array of rgb values"""
-        x = x % (2 ** z)
-        url = self.url(z, x, y)
-        logger.debug('retrieving tile from %s', url)
-        resp = session.get(url)
-        if resp.status_code != 200:
-            msg = 'Could not retrieve tile for z={}, x={}, y={}'
-            msg = msg.format(z, x, y)
-            raise TileNotFoundError(msg)
-        img_bytes = resp.content
-        img = PIL.Image.open(io.BytesIO(img_bytes))
-        rgba = img.convert('RGBA')
-        rgba = np.flip(rgba, 0)
-        return rgba
-
-
-class Stamen(TileProvider):
-    def url(self, z, x, y):
-        url = 'http://c.tile.stamen.com/{}/{}/{}/{}.png'
-        url = url.format(self.map_name, z, x, y)
-        return url
-
-class StamenToner(Stamen):
-    map_name = 'toner'
-
-class StamenLite(Stamen):
-    map_name = 'toner-lite'
-
-class StamenTerrain(Stamen):
-    map_name = 'terrain'
-
-class StamenWatercolor(Stamen):
-    map_name = 'watercolor'
-
-
-class CartodbBase(TileProvider):
-    """Subclasses of CartodbBase must provide a `map_name` attribute on the class"""
-    def url(self, z, x, y):
-        base = 'http://cartodb-basemaps-1.global.ssl.fastly.net/{}/{}/{}/{}.png'
-        return base.format(self.map_name, z, x, y)
-
-
-class CartodbDark(CartodbBase):
-    map_name = 'dark_all'
-
-
 class CanvasMap(scene.SceneCanvas):
     """Map on top of tile data"""
     # x, y bounds for Web Mercator.
     _web_mercator_bounds = 20037508.342789244
 
-    def __init__(self, *args, tile_provider=StamenToner(), **kwargs):
+    def __init__(self, *args, tile_provider=StamenTonerInverted(), **kwargs):
         super().__init__(*args, **kwargs)
         # Set up a viewbox to display the image with interactive pan/zoom
         self.unfreeze()
@@ -216,6 +150,7 @@ class CanvasMap(scene.SceneCanvas):
         self.add_tiles_for_current_zoom()
 
     def on_mouse_press(self, event):
+        # lock needed here? we're messing with the marker and some text.
         with lock:
             self.last_event = event
             if event.button == 2:
