@@ -6,8 +6,8 @@ Vispy canvas that lets you do tile maps
 import enum
 import functools
 import logging
+import multiprocessing.pool
 import queue
-import time
 import threading
 
 import mercantile
@@ -17,7 +17,7 @@ from vispy import scene
 import vispy.visuals.transforms as transforms
 import PIL.Image
 
-from .tile_providers import StamenTonerInverted
+from .tile_providers import StamenTonerInverted, TileNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,8 @@ class CanvasMap(scene.SceneCanvas):
         self.unfreeze()
         self.view = self.central_widget.add_view()
         self._tile_provider = tile_provider
+        # TODO: how big to make thread pool?
+        self.request_pool = multiprocessing.pool.ThreadPool(10)
 
         # cal factor done with math.  At zoom level 0, the mercator units / pixel
         # is 156543.  So our zom calibration factor needs to be based on that
@@ -307,13 +309,22 @@ class CanvasMap(scene.SceneCanvas):
 
     def _merge_tiles(self, z, x0, y0, x1, y1):
         """Merge range of tiles to form a single image."""
+        requests = []
+        x_range = range(x0, x1 + 1)
+        y_range = range(y1, y0 - 1, -1)
+        for x in x_range:
+            for y in y_range:
+                requests.append((z, x, y, OnMissing.REPLACE_WITH_CAT))
+        results = self.request_pool.starmap(self.get_tile, requests)
+
+        # iterate over results, which will be exactly the same size as the
+        # number of requests made
+        it = iter(results)
         rows = []
-        start = time.time()
         for x in range(x0, x1 + 1):
             row = []
             for y in range(y1, y0 - 1, -1):
-                # account for wrapping around the world...
-                row.append(self.get_tile(z, x, y, missing=OnMissing.REPLACE_WITH_CAT))
+                row.append(next(it))
             rows.append(np.concatenate(row))
         new_img = np.concatenate(rows, 1)
         return new_img
