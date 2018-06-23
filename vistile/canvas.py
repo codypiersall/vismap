@@ -98,25 +98,24 @@ class CanvasMap(scene.SceneCanvas):
         bbox = mercantile.xy_bounds(0, 0, 0)
         rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
         self.text = vispy.scene.visuals.Text(
-            'test',
+            '',
             parent=self.view.scene,
             color='red',
-            anchor_x='left')
-        self.text.font_size = 10
+            anchor_x='left',
+            font_size=10,
+        )
         self.text.order = 1
-        self.text.draw()
 
         self._attribution = vispy.scene.visuals.Text(
-            'hello',
+            tile_provider.attribution,
             parent=self.scene,
+            pos=(0, 0),
             color='white',
             anchor_x='left',
             anchor_y='top',
+            font_size=9,
         )
-        self._attribution.font_size = 10
-        self._attribution.pos = (0, 0)
         self._attribution.order = 10
-        self._attribution.draw()
 
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
         self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
@@ -210,7 +209,7 @@ class CanvasMap(scene.SceneCanvas):
         return merc_per_pixel
 
     @property
-    def best_zoom_level(self):
+    def tile_zoom_level(self):
         merc_per_pixel = self.mercator_scale
 
         zoom = -np.log2(merc_per_pixel)
@@ -243,6 +242,7 @@ class CanvasMap(scene.SceneCanvas):
         return transforms.STTransform(scale=scale, translate=translate)
 
     def _fix_y(self, y):
+        """Make sure ``y`` fits in the Web Mercator bounds."""
         if y >= self._web_mercator_bounds:
             return self._web_mercator_bounds - 1
         elif y <= -self._web_mercator_bounds:
@@ -251,52 +251,56 @@ class CanvasMap(scene.SceneCanvas):
 
     @property
     def real_rect(self):
-        """Get the camera's real rectangle"""
+        """Get the camera's real rectangle.
+
+        The camera's ``rect`` property doesn't give the correct value.
+        """
         return self.view.camera._real_rect
 
     @property
     def current_bounds(self):
         """Return the tile index bounds of the current view.
 
-        Returns a tuple of two mercantile.Tile instances
+        Returns a tuple of two mercantile.Tile instances: the northwest and
+        southeast corners.
         """
         rect = self.real_rect
-        z = self.best_zoom_level
+        z = self.tile_zoom_level
 
         x0, y0 = rect.left, rect.top
         y0 = self._fix_y(y0)
         lng0, lat0 = mercantile.lnglat(x0, y0)
-        tile0 = mercantile.tile(lng0, lat0, z)
+        northwest = mercantile.tile(lng0, lat0, z)
 
         x1, y1 = rect.right, rect.bottom
         y1 = self._fix_y(y1)
         lng1, lat1 = mercantile.lnglat(x1, y1)
-        tile1 = mercantile.tile(lng1, lat1, z)
-        return tile0, tile1
+        southeast = mercantile.tile(lng1, lat1, z)
+        return northwest, southeast
 
-    def _add_tiles_for_zoom(self, zoom_level=None, bounds=None):
+    def _add_tiles_for_zoom(self, zoom_level=None, bounds=None, extra=1):
         """
+        (Synchronously) add tiles to the canvas specified zoom. and bounds.
+
+        if zoom_level is None, use ``self.current_zoom``
+
         """
         if zoom_level is None:
-            zoom_level = self.best_zoom_level
+            zoom_level = self.tile_zoom_level
         if bounds is None:
             bounds = self.current_bounds
         z = zoom_level
-        tile0, tile1 = bounds
-        # two extra tiles for smooth panning
-        x0 = tile0.x - 1
-        x1 = tile1.x + 1
-        y0 = tile0.y - 1
-        y1 = tile1.y + 1
+        northwest, southeast = bounds
+        # extra tiles for smooth panning
+        x0 = northwest.x - extra
+        x1 = southeast.x + extra
+        y0 = northwest.y - extra
+        y1 = southeast.y + extra
 
         if y0 < 0:
             y0 = 0
         if y1 > 2**z - 1:
             y1 = 2**z - 1
-
-        # for x in range(x0, x1 + 1):
-        #     for y in range(y0, y1 + 1):
-        #         self._add_tile(z, x, y)
 
         if (z, x0, x1, y0, y1) not in self._images:
             rgb = self._merge_tiles(z, x0, y0, x1, y1)
@@ -310,24 +314,30 @@ class CanvasMap(scene.SceneCanvas):
         assert len(self._images) == len(self.scene_images)
 
     def remove_tile(self, key):
+        """Remove the tile from the scene.
+
+        ``key`` must be a key in self._images
+        """
         im = self._images.pop(key)
         with scene_lock:
             im.parent = None
 
     def add_tiles_for_current_zoom(self):
         """
-        Fill the current view with tiles
+        Fill the current view with tiles.  Does the actual operation in the
+        background.
         """
         self.queue.put({
             'cmd': 'call_method',
             'name': '_add_tiles_for_zoom',
-            'args': [self.best_zoom_level, self.current_bounds]
+            'args': [self.tile_zoom_level, self.current_bounds]
         })
 
     @property
     def scene_images(self):
         """Return the images that are part of the scene graph.  If the code
-        is bug-free, the images here and the values of self._images should be equal.
+        is bug-free, the images here and the values of self._images should be
+        equal.
         """
         with scene_lock:
             c = self.view.children[0].children
