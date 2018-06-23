@@ -23,16 +23,14 @@ logger = logging.getLogger(__name__)
 
 # this lock is needed any time the scene graph is touched, or nodes of the
 # scene graph are transformed.
-# TODO: There seems to be a bad interaction between the mouse-wheel zoom and
-#       adding new tiles.  Right-click zoom works fine though...
-lock = threading.Lock()
+scene_lock = threading.Lock()
+
 
 class TileCamera(scene.PanZoomCamera):
-
     def viewbox_mouse_event(self, event):
         if event.handled:
             return
-        with lock:
+        with scene_lock:
             super().viewbox_mouse_event(event)
         # if the tile command queue has anything in it, let's just get the
         # heck out of here; this prevents a hugely unresponsive deal.
@@ -99,10 +97,27 @@ class CanvasMap(scene.SceneCanvas):
         # default zoom shows the whole world
         bbox = mercantile.xy_bounds(0, 0, 0)
         rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
-        self.text = vispy.scene.visuals.Text('test', parent=self.view.scene, color='red', anchor_x='left')
+        self.text = vispy.scene.visuals.Text(
+            'test',
+            parent=self.view.scene,
+            color='red',
+            anchor_x='left')
         self.text.font_size = 10
         self.text.order = 1
         self.text.draw()
+
+        self._attribution = vispy.scene.visuals.Text(
+            'hello',
+            parent=self.scene,
+            color='white',
+            anchor_x='left',
+            anchor_y='top',
+        )
+        self._attribution.font_size = 10
+        self._attribution.pos = (0, 0)
+        self._attribution.order = 10
+        self._attribution.draw()
+
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
         self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
         self.marker.draw()
@@ -149,11 +164,14 @@ class CanvasMap(scene.SceneCanvas):
     @tile_provider.setter
     def tile_provider(self, provider):
         self._tile_provider = provider
+        for im in list(self._images):
+            self.remove_tile(im)
         self.add_tiles_for_current_zoom()
+        self._attribution.text = provider.attribution
 
     def on_mouse_press(self, event):
         # lock needed here? we're messing with the marker and some text.
-        with lock:
+        with scene_lock:
             self.last_event = event
             if event.button == 2:
                 # right click
@@ -203,6 +221,14 @@ class CanvasMap(scene.SceneCanvas):
             zoom = 0
         return zoom
 
+    def _update_transforms(self):
+        """
+        Holds the scene_lock while updating transforms.  It was seen through
+        tracebacks that this method seemed to be the best place to put a lock.
+
+        """
+        with scene_lock:
+            super()._update_transforms()
 
     def get_st_transform(self, z, x, y):
         """
@@ -285,7 +311,7 @@ class CanvasMap(scene.SceneCanvas):
 
     def remove_tile(self, key):
         im = self._images.pop(key)
-        with lock:
+        with scene_lock:
             im.parent = None
 
     def add_tiles_for_current_zoom(self):
@@ -303,7 +329,7 @@ class CanvasMap(scene.SceneCanvas):
         """Return the images that are part of the scene graph.  If the code
         is bug-free, the images here and the values of self._images should be equal.
         """
-        with lock:
+        with scene_lock:
             c = self.view.children[0].children
             return [x for x in c if isinstance(x, scene.visuals.Image)]
 
@@ -360,7 +386,7 @@ class CanvasMap(scene.SceneCanvas):
 
     def _add_rgb_as_image(self, rgb, z, x, y):
         """Create image, and apply appropriate transform to it."""
-        with lock:
+        with scene_lock:
             image = scene.visuals.Image(
                 rgb,
                 interpolation='hanning',

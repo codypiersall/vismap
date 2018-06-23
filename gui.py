@@ -8,8 +8,8 @@ from PyQt4.QtCore import Qt
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
-from vistile import CanvasMap, StamenToner, CartodbDark, StamenWatercolor, \
-    StamenTonerInverted, StamenTerrain
+from vistile import CanvasMap
+from vistile.tile_providers import *
 
 QtWidgets = QtGui
 
@@ -44,7 +44,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusWidget = statusWidget = QtWidgets.QDockWidget('Status')
         statusWidget.setObjectName('Status')
 
-        self.canvas = canvas = CanvasMap(tile_provider=StamenTonerInverted(),
+        self.canvas = canvas = CanvasMap(tile_provider=CoolBlue(),
                                          keys='interactive')
 
         self.vislayout = QtWidgets.QBoxLayout(1)
