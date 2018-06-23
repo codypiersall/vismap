@@ -109,13 +109,13 @@ class CanvasMap(scene.SceneCanvas):
         self._attribution = vispy.scene.visuals.Text(
             tile_provider.attribution,
             parent=self.scene,
-            pos=(0, 0),
+            pos=(4, 4),
             color='white',
             anchor_x='left',
-            anchor_y='top',
+            anchor_y='bottom',
             font_size=9,
         )
-        self._attribution.order = 10
+        self._attribution.order = 1
 
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
         self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])

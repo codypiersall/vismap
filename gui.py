@@ -8,8 +8,8 @@ from PyQt4.QtCore import Qt
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
-from vistile import CanvasMap
-from vistile.tile_providers import *
+from vismap import CanvasMap
+from vismap.tile_providers import *
 
 QtWidgets = QtGui
 

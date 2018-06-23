@@ -1,9 +1,9 @@
 from vispy import app
-import vistile
+import vismap
 
-canvas = vistile.CanvasMap(tile_provider=vistile.StamenTonerInverted(),
+canvas = vismap.CanvasMap(tile_provider=vismap.StamenTonerInverted(),
                            show=True)
-canvas.title = 'Tiles!'
+canvas.title = 'Maaaaps'
 
 app.run()
 
