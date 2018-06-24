@@ -38,8 +38,12 @@ class Canvas(vismap.CanvasMap):
         self.tile_provider = tp.providers[name]()
         self.title = name
 
-canvas = Canvas(show=True)
-canvas.title = 'Maaaaps'
 
-app.run()
+def main():
+    canvas = Canvas(show=True)
+    canvas.title = 'Maaaaps'
+    app.run()
 
+
+if __name__ == '__main__':
+    main()

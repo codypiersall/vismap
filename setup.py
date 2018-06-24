@@ -12,6 +12,12 @@ install_requires = [
 with open("README.md", "r") as f:
     long_description = f.read()
 
+entry_points={
+    'console_scripts': [
+        'vismap-example = example:main',
+    ]
+}
+
 setuptools.setup(
     name="vismap",
     version="0.0.0_pre",
@@ -21,10 +27,11 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/codypiersall/vismap",
-    packages=setuptools.find_packages(),
+    packages=['vismap'],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ),
+    entry_points=entry_points,
 )
