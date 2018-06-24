@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 _session = CachedSession(backend=fs_cache.FSCache())
 
 
+# mapping of class name: TileProvider.  Built up with register() decorator.
+providers = {}
+
+
+def register(cls):
+    """Register a class as a tile provider."""
+    providers[cls.__name__] = cls
+    return cls
+
+
+
 class TileNotFoundError(Exception):
     pass
 
@@ -59,7 +70,7 @@ class TileProvider(abc.ABC):
         pass
 
 
-class Stamen(TileProvider):
+class StamenBase(TileProvider):
     """The basic Stamen maps"""
     def url(self, z, x, y):
         url = 'http://c.tile.stamen.com/{}/{}/{}/{}.png'
@@ -70,25 +81,29 @@ class Stamen(TileProvider):
     attribution += 'by OpenStreetMap, under ODbL'
 
 
-class StamenToner(Stamen):
+@register
+class StamenToner(StamenBase):
     map_name = 'toner'
 
 
-class StamenLite(Stamen):
+@register
+class StamenLite(StamenBase):
     map_name = 'toner-lite'
 
 
-class StamenTerrain(Stamen):
+@register
+class StamenTerrain(StamenBase):
     map_name = 'terrain'
 
 
-class StamenWatercolor(Stamen):
+@register
+class StamenWatercolor(StamenBase):
     map_name = 'watercolor'
     attribution = 'Map tiles by Stamen Design, under CC BY 3.0. '
     attribution += 'Data by OpenStreetMap, under CC BY SA'
 
 
-class MapStack(TileProvider):
+class MapStackBase(TileProvider):
     """Map Stack allows lots of transformations of Stamen tiles
     Subclasses must provide a "transform" attribute on the class.
     """
@@ -103,34 +118,39 @@ class MapStack(TileProvider):
     attribution += 'OpenStreetMap contributors, under CC-BY-SA'
 
 
-class SomeMap(MapStack):
+@register
+class FadedWatercolor(MapStackBase):
     transform = '((watercolor,$fff[hsl-saturation@50],$ff5500[hsl-color@30]),(naip,$fff[hsl-saturation@20],mapbox-water[destination-out])[overlay])'
 
 
-class CoolBlue(MapStack):
+@register
+class CoolBlue(MapStackBase):
     transform = '(toner-lite,$fff[difference],$000[@40],$fff[hsl-saturation@40],$5999a6[hsl-color],buildings[destination-out])[hsl-saturation@90]'
 
 
-class Wiggity(MapStack):
-    transform = '(toner-background,$fff[difference],mapbox-water[destination-out])'
-
-
-class BigMapOfBlue(MapStack):
+@register
+class BigMapOfBlue(MapStackBase):
+    """Named by my four-year-old son."""
     transform = '(watercolor,$fff[difference],$81e3f7[hsl-color])'
 
 
-class StamenTonerInverted(MapStack):
+@register
+class StamenTonerInverted(MapStackBase):
     """Inverted colors, otherwise same as StamenToner"""
     transform = '(toner,$fff[difference])'
 
 
 class CartodbBase(TileProvider):
-    """Subclasses of CartodbBase must provide a `map_name` attribute on the class"""
+    """Subclasses of CartodbBase must provide a `map_name` attribute
+    on the class"""
+
     def url(self, z, x, y):
         base = 'http://cartodb-basemaps-1.global.ssl.fastly.net/{}/{}/{}/{}.png'
         return base.format(self.map_name, z, x, y)
 
+    attribution = 'Copyright OpenStreetMap; Copyright CartoDB'
 
+@register
 class CartodbDark(CartodbBase):
     map_name = 'dark_all'
 
