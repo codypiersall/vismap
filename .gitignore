@@ -8,3 +8,8 @@ __pycache__
 # pycharm
 .idea
 cache
+
+# pypi stuff
+build
+dist
+*.egg-info
