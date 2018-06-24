@@ -38,6 +38,8 @@ class FSDict(MutableMapping):
 
     def __setitem__(self, key, value):
         path = self._key_to_path(key)
+        if isinstance(value, str):
+            value = value.encode()
         with open(path, 'wb') as f:
             f.write(value)
 
