@@ -14,7 +14,7 @@ with open("README.md", "r") as f:
 
 entry_points={
     'console_scripts': [
-        'vismap-example = example:main',
+        'vismap-example = vismap.example:main',
     ]
 }
 
