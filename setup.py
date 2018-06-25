@@ -34,4 +34,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ),
     entry_points=entry_points,
+    install_requires=install_requires,
 )
