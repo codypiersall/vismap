@@ -238,7 +238,7 @@ class CanvasMap(scene.SceneCanvas):
         scale = (bbox.right - bbox.left) / 256
         scale = scale, scale, 1
 
-        translate = bbox.left, bbox.bottom, -z
+        translate = bbox.left, bbox.bottom, -z / 100 + 100
         return transforms.STTransform(scale=scale, translate=translate)
 
     def _fix_y(self, y):
