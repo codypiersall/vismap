@@ -8,8 +8,7 @@ from PyQt4.QtCore import Qt
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
-from vismap import CanvasMap
-from vismap.tile_providers import *
+import vismap
 
 QtWidgets = QtGui
 
@@ -44,8 +43,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusWidget = statusWidget = QtWidgets.QDockWidget('Status')
         statusWidget.setObjectName('Status')
 
-        self.canvas = canvas = CanvasMap(tile_provider=CoolBlue(),
-                                         keys='interactive')
+        self.canvas = canvas = vismap.Canvas(
+            tile_provider=vismap.tile_providers.CoolBlue(),
+            keys='interactive'
+        )
 
         self.vislayout = QtWidgets.QBoxLayout(1)
         self.vislayout.addWidget(self.canvas.native)

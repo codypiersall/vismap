@@ -63,7 +63,7 @@ class OnMissing(enum.Enum):
     REPLACE_WITH_CAT = 2
 
 
-class CanvasMap(scene.SceneCanvas):
+class Canvas(scene.SceneCanvas):
     """Map on top of tile data"""
     # x, y bounds for Web Mercator.
     _web_mercator_bounds = 20037508.342789244

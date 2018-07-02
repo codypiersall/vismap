@@ -17,7 +17,7 @@ _names = list(tp.providers)
 _names = CircularSequeunce(_names)
 
 
-class Canvas(vismap.CanvasMap):
+class Canvas(vismap.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.unfreeze()
@@ -41,7 +41,7 @@ class Canvas(vismap.CanvasMap):
 
 def main():
     canvas = Canvas(show=True)
-    canvas.title = 'Maaaaps'
+    canvas.title = 'Maps'
     app.run()
 
 
