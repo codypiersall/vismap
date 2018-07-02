@@ -47,5 +47,5 @@ geographically.  The motivating use case is radar data: it makes sense to think
 of the data in meters, relative to a specific latitude and longitude.
 
 When you are using these transforms, make sure you **always remember to add the
-visual to the corect scene**, otherwise the data will not show up and it will
+visual to the correct scene**, otherwise the data will not show up and it will
 probably be confusing.
