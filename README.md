@@ -15,7 +15,6 @@ vismap; so from your command line just run
 
 Use the left and right arrow keys to change the tile provider.
 
-
 What's the Point?
 -----------------
 
@@ -50,3 +49,10 @@ of the data in meters, relative to a specific latitude and longitude.
 When you are using these transforms, make sure you **always remember to add the
 visual to the correct scene**, otherwise the data will not show up and it will
 probably be confusing.
+
+Installing
+----------
+
+Vismap is available via pip:
+
+    pip install vismap
