@@ -311,7 +311,6 @@ class Canvas(scene.SceneCanvas):
             z = key[0]
             if z != zoom_level:
                 self.remove_tile(key)
-        assert len(self._images) == len(self.scene_images)
 
     def remove_tile(self, key):
         """Remove the tile from the scene.
