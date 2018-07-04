@@ -6,6 +6,7 @@ Classes for retrieving tiles from different providers.
 import abc
 import io
 import logging
+import os
 
 import numpy as np
 import PIL.Image
@@ -13,9 +14,12 @@ from requests_cache import CachedSession
 
 from . import fs_cache
 
+
+CACHE_DIR = os.path.expanduser( '~/.vismap-tiles')
+
 logger = logging.getLogger(__name__)
 
-_session = CachedSession(backend=fs_cache.FSCache())
+_session = CachedSession(backend=fs_cache.FSCache(CACHE_DIR))
 
 
 # mapping of class name: TileProvider.  Built up with register() decorator.
