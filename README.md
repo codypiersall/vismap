@@ -15,6 +15,11 @@ vismap; so from your command line just run
 
 Use the left and right arrow keys to change the tile provider.
 
+Vismap will provides you with a map on which to plot your own data.  An example
+map:
+
+![Stamen Toner Inverted](stamen_toner_inverted.png)
+
 What's the Point?
 -----------------
 
