@@ -97,18 +97,19 @@ class Canvas(scene.SceneCanvas):
         # default zoom shows the whole world
         bbox = mercantile.xy_bounds(0, 0, 0)
         rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
-        self.text = vispy.scene.visuals.Text(
+        self.longlat_text = vispy.scene.visuals.Text(
             '',
             parent=self.view.scene,
             color='red',
             anchor_x='left',
             font_size=10,
         )
-        self.text.order = 1
+        self.longlat_text.order = 1
 
         self._attribution = vispy.scene.visuals.Text(
             tile_provider.attribution,
             parent=self.scene,
+            # a few pixels from the top left
             pos=(4, 4),
             color='white',
             anchor_x='left',
@@ -118,7 +119,8 @@ class Canvas(scene.SceneCanvas):
         self._attribution.order = 1
 
         self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
-        self.marker.set_data(np.array([[0, 0, 0]]), face_color=[(1, 1, 1)])
+        self.marker.set_data(np.array([[0, 0]]), face_color=[(1, 1, 1)])
+        self.marker.order = 1
         self.marker.draw()
         self.view.camera.rect = rect
         self.last_event = None
@@ -174,7 +176,7 @@ class Canvas(scene.SceneCanvas):
             self.last_event = event
             if event.button == 2:
                 # right click
-                self.text.text = ''
+                self.longlat_text.text = ''
                 # should be painted below anything else
                 self.marker.visible = False
                 return
@@ -189,12 +191,13 @@ class Canvas(scene.SceneCanvas):
                 y_interp = canvas_y / height
                 view_x = rect.left + x_interp * (rect.right - rect.left)
                 view_y = rect.top + y_interp * (rect.bottom - rect.top)
-                self.text.pos = (view_x, view_y, -1000)
+                self.longlat_text.pos = (view_x, view_y)
                 msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
                 lng, lat = mercantile.lnglat(view_x, view_y)
                 msg = msg.format(lng, lat, view_x, view_y)
-                self.text.text = msg
-                self.marker.set_data(np.array([[view_x, view_y, -1000]]), size=self.marker_size)
+                self.longlat_text.text = msg
+                self.marker.set_data(np.array([[view_x, view_y]]),
+                                     size=self.marker_size)
                 self.marker.visible = True
 
     @property
@@ -238,7 +241,14 @@ class Canvas(scene.SceneCanvas):
         scale = (bbox.right - bbox.left) / 256
         scale = scale, scale, 1
 
-        translate = bbox.left, bbox.bottom, -z / 100 + 100
+        # place the tiles up high, so that everything will show up correctly
+        # TODO: figure out why setting z super high works!  Not sure if it's
+        # expected behavior or just a detail of the current Vispy
+        # implementation.  Seems like setting order would be a better way,
+        # but it doesn't work.
+        # If we ever switch to a different type of camera probably nothing
+        # will work.
+        translate = bbox.left, bbox.bottom, 9e5 - z
         return transforms.STTransform(scale=scale, translate=translate)
 
     def _fix_y(self, y):
