@@ -159,3 +159,33 @@ class CartodbDark(CartodbBase):
     map_name = 'dark_all'
 
 
+@register
+class Mapnik(TileProvider):
+    def url(self, z, x, y):
+        url = 'http://a.tile.openstreetmap.org/{}/{}/{}.png'
+        return url.format(z, x, y)
+
+    attribution = 'Copyright OpenStreetMap'
+
+
+@register
+class OpenTopMap(TileProvider):
+    def url(self, z, x, y):
+        url = 'http://a.tile.opentopomap.org/{}/{}/{}.png'
+        return url.format(z, x, y)
+
+    attribution = ('Map data: Copyright OpenStreetMap, SRTM \n '
+                   'Map style: Copyright OpenTopoMap CC-BY-SA')
+
+
+@register
+class EsriWorldImagery(TileProvider):
+    def url(self, z, x, y):
+        url ='http://server.arcgisonline.com/ArcGIS/rest/services' \
+             '/World_Imagery/MapServer/tile/{}/{}/{}'
+        return url.format(z, y, x)
+
+    attribution = \
+        'Tiles copyright Esri -- Source: Esri, i-cubed, USDA, USGS, AEX, ' \
+        'GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User ' \
+        'Community'
