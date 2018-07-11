@@ -35,4 +35,7 @@ setuptools.setup(
     ),
     entry_points=entry_points,
     install_requires=install_requires,
+    package_data={
+        'vismap': ['cat-killer-256x256.png'],
+    }
 )

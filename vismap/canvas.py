@@ -8,6 +8,7 @@ import functools
 import logging
 import multiprocessing.pool
 import queue
+import os
 import threading
 
 import mercantile
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 # scene graph are transformed.
 scene_lock = threading.Lock()
 
+_CAT_FILE = os.path.join(os.path.dirname(__file__),
+                         'cat-killer-256x256.png')
 
 class TileCamera(scene.PanZoomCamera):
     def viewbox_mouse_event(self, event):
@@ -397,7 +400,7 @@ class Canvas(scene.SceneCanvas):
 
     @functools.lru_cache(maxsize=1)
     def _get_cat(self):
-        with open('cat-killer-256x256.png', 'rb') as f:
+        with open(_CAT_FILE, 'rb') as f:
             im = PIL.Image.open(f)
             rgb = np.array(im)
         flipped = np.flip(rgb, 0)
