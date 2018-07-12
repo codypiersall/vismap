@@ -1,5 +1,3 @@
-import itertools
-
 from vispy import app
 import vismap
 import vismap.tile_providers as tp
