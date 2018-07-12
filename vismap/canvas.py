@@ -403,6 +403,7 @@ class MapView(scene.ViewBox):
         })
 
 
+
 class TileCamera(scene.PanZoomCamera):
     def viewbox_mouse_event(self, event):
         if event.handled:

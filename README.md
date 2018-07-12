@@ -7,7 +7,7 @@ Provides a Canvas for creating maps with
 with this project; adding a tile provider simply requires knowing the URL at
 which to grab a tile, and providing the attribution text for the tiles.
 
-Run the provided [example](vismap/example.py) to check out how interacting with
+Run the provided [example](vismap/examples/basic.py) to check out how interacting with
 the map works.  The script is installed as ``vismap-example`` if you install
 vismap; so from your command line just run
 

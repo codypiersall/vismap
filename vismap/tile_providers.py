@@ -7,6 +7,7 @@ import abc
 import io
 import logging
 import os
+import random
 
 import numpy as np
 import PIL.Image
@@ -30,7 +31,6 @@ def register(cls):
     """Register a class as a tile provider."""
     providers[cls.__name__] = cls
     return cls
-
 
 
 class TileNotFoundError(Exception):
@@ -189,3 +189,9 @@ class EsriWorldImagery(TileProvider):
         'Tiles copyright Esri -- Source: Esri, i-cubed, USDA, USGS, AEX, ' \
         'GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User ' \
         'Community'
+
+
+def random_provider():
+    """Return a random tile provider class"""
+    return random.choice(list(providers.values()))()
+

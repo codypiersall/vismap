@@ -12,9 +12,10 @@ install_requires = [
 with open("README.md", "r") as f:
     long_description = f.read()
 
-entry_points={
+entry_points = {
     'console_scripts': [
-        'vismap-example = vismap.example:main',
+        'vismap-example = vismap.examples.basic:main',
+        'vismap-grid = vismap.examples.grid:main',
     ]
 }
 
