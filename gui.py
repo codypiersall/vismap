@@ -44,7 +44,7 @@ class MainWindow(QtWidgets.QMainWindow):
         statusWidget.setObjectName('Status')
 
         self.canvas = canvas = vismap.Canvas(
-            tile_provider=vismap.tile_providers.CoolBlue(),
+            tile_provider=vismap.tile_providers.StamenTonerInverted(),
             keys='interactive'
         )
 
