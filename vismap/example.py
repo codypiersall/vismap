@@ -35,7 +35,7 @@ class Canvas(vismap.Canvas):
 
     def _update_provider(self):
         name = _names[self._provider_index]
-        self.tile_provider = tp.providers[name]()
+        self.view.tile_provider = tp.providers[name]()
         self.title = name
 
 
