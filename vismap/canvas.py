@@ -29,32 +29,6 @@ scene_lock = threading.Lock()
 _CAT_FILE = os.path.join(os.path.dirname(__file__),
                          'cat-killer-256x256.png')
 
-class TileCamera(scene.PanZoomCamera):
-    def viewbox_mouse_event(self, event):
-        if event.handled:
-            return
-        with scene_lock:
-            super().viewbox_mouse_event(event)
-        # if the tile command queue has anything in it, let's just get the
-        # heck out of here; this prevents a hugely unresponsive deal.
-        if not self.canvas.queue.empty():
-            return
-        # figure out if we need an update; if the mouse is moving, but no key
-        # is held down, we don't need to update.
-        needs_update = False
-        if event.type == 'mouse_wheel':
-            needs_update = True
-        elif event.type == 'mouse_move':
-            # conditions taken from PanZoomCamera source code
-            modifiers = event.mouse_event.modifiers
-            if 1 in event.buttons and not modifiers:
-                # translating; need to update
-                needs_update = True
-            elif 2 in event.buttons and not modifiers:
-                needs_update = True
-        if needs_update:
-            self.canvas.add_tiles_for_current_zoom()
-
 
 class OnMissing(enum.Enum):
     """What action to take whenever a tile is missing"""
@@ -66,16 +40,14 @@ class OnMissing(enum.Enum):
     REPLACE_WITH_CAT = 2
 
 
-class Canvas(scene.SceneCanvas):
-    """Map on top of tile data"""
+class MapView(scene.ViewBox):
     # x, y bounds for Web Mercator.
     _web_mercator_bounds = 20037508.342789244
 
-    def __init__(self, *args, tile_provider=StamenTonerInverted(), **kwargs):
+    def __init__(self, tile_provider=StamenTonerInverted(), *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Set up a viewbox to display the image with interactive pan/zoom
         self.unfreeze()
-        self.view = self.central_widget.add_view()
+        self._images = {}
         self._tile_provider = tile_provider
         # TODO: how big to make thread pool?
         self.request_pool = multiprocessing.pool.ThreadPool(10)
@@ -87,22 +59,21 @@ class Canvas(scene.SceneCanvas):
         # (dividing by 256 because that is the number of pixels per tile)
         # Add 0.5 so that the zoom level is crisp in the middle of when it's loaded.
         self.zoom_cal = 17.256199785269995 + 0.5
-        self._images = {}
 
         # Set 2D camera (the camera will scale to the contents in the scene)
-        self.view.camera = TileCamera(aspect=1)
+        self.camera = TileCamera(aspect=1)
         # flip y-axis to have correct alignment
-        # self.view.camera.flip = (0, 1, 0)
-        self.view.camera.set_range()
+        # self.camera.flip = (0, 1, 0)
+        self.camera.set_range()
         # default is 0.007, half of that feels about right
-        self.view.camera.zoom_factor = 0.0035
+        self.camera.zoom_factor = 0.0035
 
         # default zoom shows the whole world
         bbox = mercantile.xy_bounds(0, 0, 0)
         rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
         self.longlat_text = vispy.scene.visuals.Text(
             '',
-            parent=self.view.scene,
+            parent=self.scene,
             color='red',
             anchor_x='left',
             font_size=10,
@@ -111,7 +82,7 @@ class Canvas(scene.SceneCanvas):
 
         self._attribution = vispy.scene.visuals.Text(
             tile_provider.attribution,
-            parent=self.scene,
+            parent=self,
             # a few pixels from the top left
             pos=(4, 4),
             color='white',
@@ -121,11 +92,11 @@ class Canvas(scene.SceneCanvas):
         )
         self._attribution.order = 1
 
-        self.marker = vispy.scene.visuals.Markers(parent=self.view.scene)
+        self.marker = vispy.scene.visuals.Markers(parent=self.scene)
         self.marker.set_data(np.array([[0, 0]]), face_color=[(1, 1, 1)])
         self.marker.order = 1
         self.marker.draw()
-        self.view.camera.rect = rect
+        self.camera.rect = rect
         self.last_event = None
         self.marker_size = 10
         self.queue = queue.Queue()
@@ -136,10 +107,7 @@ class Canvas(scene.SceneCanvas):
         )
         self.worker_thread.start()
 
-        z = 1
-        for x in range(2**z):
-            for y in range(2**z):
-                self._add_tile(z, x, y)
+        self.tile_provider = tile_provider
         self.freeze()
 
     def tile_controller(self, queue):
@@ -185,10 +153,10 @@ class Canvas(scene.SceneCanvas):
                 return
             elif event.button == 3:
                 # middle click
-                canvas_x, canvas_y = event.pos
+                canvas_x, canvas_y, *_ = event.pos
                 width, height = self.size
 
-                rect = self.view.camera._real_rect
+                rect = self.camera._real_rect
 
                 x_interp = canvas_x / width
                 y_interp = canvas_y / height
@@ -208,7 +176,7 @@ class Canvas(scene.SceneCanvas):
         """Get mercator units per pixel of the canvas"""
         # figure out the right zoom level by the number of pixels per mercator units
         canvas_width, _ = self.size
-        _real_rect = self.view.camera._real_rect
+        _real_rect = self.camera._real_rect
         # units are Mercator
         scene_width = _real_rect.width
         merc_per_pixel = scene_width / canvas_width
@@ -263,21 +231,13 @@ class Canvas(scene.SceneCanvas):
         return y
 
     @property
-    def real_rect(self):
-        """Get the camera's real rectangle.
-
-        The camera's ``rect`` property doesn't give the correct value.
-        """
-        return self.view.camera._real_rect
-
-    @property
     def current_bounds(self):
         """Return the tile index bounds of the current view.
 
         Returns a tuple of two mercantile.Tile instances: the northwest and
         southeast corners.
         """
-        rect = self.real_rect
+        rect = self.camera._real_rect
         z = self.tile_zoom_level
 
         x0, y0 = rect.left, rect.top
@@ -352,7 +312,7 @@ class Canvas(scene.SceneCanvas):
         equal.
         """
         with scene_lock:
-            c = self.view.children[0].children
+            c = self.children[0].children
             return [x for x in c if isinstance(x, scene.visuals.Image)]
 
     def _merge_tiles(self, z, x0, y0, x1, y1):
@@ -412,7 +372,7 @@ class Canvas(scene.SceneCanvas):
             image = scene.visuals.Image(
                 rgb,
                 interpolation='hanning',
-                parent=self.view.scene,
+                parent=self.scene,
                 method='subdivide',
             )
             transform = self.get_st_transform(z, x, y)
@@ -441,4 +401,41 @@ class Canvas(scene.SceneCanvas):
             'name': '_add_tile',
             'args': [z, x, y, missing],
         })
+
+
+class TileCamera(scene.PanZoomCamera):
+    def viewbox_mouse_event(self, event):
+        if event.handled:
+            return
+        with scene_lock:
+            super().viewbox_mouse_event(event)
+        # if the tile command queue has anything in it, let's just get the
+        # heck out of here; this prevents a hugely unresponsive deal.
+        if not self.parent.parent.queue.empty():
+            return
+        # figure out if we need an update; if the mouse is moving, but no key
+        # is held down, we don't need to update.
+        needs_update = False
+        if event.type == 'mouse_wheel':
+            needs_update = True
+        elif event.type == 'mouse_move':
+            # conditions taken from PanZoomCamera source code
+            modifiers = event.mouse_event.modifiers
+            if 1 in event.buttons and not modifiers:
+                # translating; need to update
+                needs_update = True
+            elif 2 in event.buttons and not modifiers:
+                needs_update = True
+        if needs_update:
+            self.parent.parent.add_tiles_for_current_zoom()
+
+
+class Canvas(scene.SceneCanvas):
+    """Map on top of tile data"""
+    def __init__(self, *args, tile_provider=StamenTonerInverted(), **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set up a viewbox to display the image with interactive pan/zoom
+        self.unfreeze()
+        self.view = self.central_widget.add_widget(MapView(tile_provider))
+        self.freeze()
 
