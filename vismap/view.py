@@ -35,10 +35,6 @@ class OnMissing(enum.Enum):
     REPLACE_WITH_CAT = 2
 
 
-# this lock is needed any time the scene graph is touched, or nodes of the
-# scene graph are transformed.
-scene_lock = threading.Lock()
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +45,10 @@ class MapView(scene.ViewBox):
     def __init__(self, tile_provider=StamenTonerInverted(), *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.unfreeze()
+        # this lock is needed any time the scene graph is touched, or nodes of the
+        # scene graph are transformed.
+        self.scene_lock = threading.Lock()
+
         self._images = {}
         self._tile_provider = tile_provider
         # TODO: how big to make thread pool?
@@ -145,7 +145,7 @@ class MapView(scene.ViewBox):
 
     def on_mouse_press(self, event):
         # lock needed here? we're messing with the marker and some text.
-        with scene_lock:
+        with self.scene_lock:
             self.last_event = event
             if event.button == 2:
                 # right click
@@ -202,7 +202,7 @@ class MapView(scene.ViewBox):
         tracebacks that this method seemed to be the best place to put a lock.
 
         """
-        with scene_lock:
+        with self.scene_lock:
             super()._update_transforms()
 
     def get_st_transform(self, z, x, y):
@@ -293,7 +293,7 @@ class MapView(scene.ViewBox):
         ``key`` must be a key in self._images
         """
         im = self._images.pop(key)
-        with scene_lock:
+        with self.scene_lock:
             im.parent = None
 
     def add_tiles_for_current_zoom(self):
@@ -313,7 +313,7 @@ class MapView(scene.ViewBox):
         is bug-free, the images here and the values of self._images should be
         equal.
         """
-        with scene_lock:
+        with self.scene_lock:
             c = self.children[0].children
             return [x for x in c if isinstance(x, scene.visuals.Image)]
 
@@ -370,7 +370,7 @@ class MapView(scene.ViewBox):
 
     def _add_rgb_as_image(self, rgb, z, x, y):
         """Create image, and apply appropriate transform to it."""
-        with scene_lock:
+        with self.scene_lock:
             image = scene.visuals.Image(
                 rgb,
                 interpolation='hanning',
@@ -407,13 +407,14 @@ class MapView(scene.ViewBox):
 
 class TileCamera(scene.PanZoomCamera):
     def viewbox_mouse_event(self, event):
+        view = self.parent.parent
         if event.handled:
             return
-        with scene_lock:
+        with view.scene_lock:
             super().viewbox_mouse_event(event)
         # if the tile command queue has anything in it, let's just get the
         # heck out of here; this prevents a hugely unresponsive deal.
-        if not self.parent.parent.queue.empty():
+        if not view.queue.empty():
             return
         # figure out if we need an update; if the mouse is moving, but no key
         # is held down, we don't need to update.
@@ -429,4 +430,4 @@ class TileCamera(scene.PanZoomCamera):
             elif 2 in event.buttons and not modifiers:
                 needs_update = True
         if needs_update:
-            self.parent.parent.add_tiles_for_current_zoom()
+            view.add_tiles_for_current_zoom()
