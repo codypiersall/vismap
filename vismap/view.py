@@ -20,6 +20,7 @@ from vispy import scene
 from vispy.visuals import transforms as transforms
 
 from .tile_providers import StamenTonerInverted, TileNotFoundError
+from .transforms import RelativeMercatorTransform
 
 _CAT_FILE = os.path.join(os.path.dirname(__file__),
                          'cat-killer-256x256.png')
@@ -50,6 +51,9 @@ class MapView(scene.ViewBox):
         self.scene_lock = threading.Lock()
 
         self._images = {}
+        # mapping of {(lnglat, radius): vispy.scene.visuals.Ellipse}
+        # circles drawn around specific points
+        self._circles = {}
         self._tile_provider = tile_provider
         # TODO: how big to make thread pool?
         self.request_pool = multiprocessing.pool.ThreadPool(10)
@@ -403,6 +407,45 @@ class MapView(scene.ViewBox):
             'name': '_add_tile',
             'args': [z, x, y, missing],
         })
+
+    def circle(self, longlat, radius, border_color=(1, 1, 1), color=(1, 1, 1 , 0)):
+        """Add a circle centere at ``center`` of radius ``radius``
+
+        Args:
+          longlat: center of the circle, given as a (longitude, latitude) tuple
+          radius: radius of the circle, specified in meters
+          border_color: color of the circle's border
+          color: fill color of the circle (usually transparent)
+
+        """
+        key = longlat, radius
+        if key in self._circles:
+            self.remove_circle(*key)
+        c = scene.visuals.Ellipse(
+            center=longlat,
+            radius=(radius, radius),
+            border_color=border_color,
+            color=color,
+            parent=self.scene,
+        )
+        c.transform = RelativeMercatorTransform(*longlat)
+        self._circles[key] = c
+
+    def circle_at_marker(self, radius, border_color=(1, 1, 1), color=(1, 1, 1, 0)):
+        longlat = self.marker_pos
+        self.circle(longlat, radius, border_color, color)
+
+    def remove_circle(self, longlat, radius):
+        """Remove the circle at ``longlat`` with radius ``radius`` from the
+        scene.
+        """
+        c = self._circles.pop((longlat, radius))
+        c.parent = None
+
+    @property
+    def marker_pos(self):
+        """Return Marker's position as a (longitude, latitude) tuple"""
+        return mercantile.lnglat(*self.marker._data[0][0][0:2])
 
 
 class TileCamera(scene.PanZoomCamera):
