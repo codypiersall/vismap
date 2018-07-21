@@ -20,7 +20,7 @@ from vispy import scene
 from vispy.visuals import transforms as transforms
 
 from .tile_providers import StamenTonerInverted, TileNotFoundError
-from .transforms import RelativeMercatorTransform
+from .transforms import RelativeMercatorTransform, MercatorTransform
 
 _CAT_FILE = os.path.join(os.path.dirname(__file__),
                          'cat-killer-256x256.png')
@@ -169,7 +169,7 @@ class MapView(scene.ViewBox):
                 view_x = rect.left + x_interp * (rect.right - rect.left)
                 view_y = rect.top + y_interp * (rect.bottom - rect.top)
                 self.longlat_text.pos = (view_x, view_y)
-                msg = '((long {:.4f} lat {:.4f}) ({:.4g}, {:.4g})'
+                msg = '((long {:f} lat {:f}) ({:f}, {:f})'
                 lng, lat = mercantile.lnglat(view_x, view_y)
                 msg = msg.format(lng, lat, view_x, view_y)
                 self.longlat_text.text = msg
@@ -446,6 +446,28 @@ class MapView(scene.ViewBox):
     def marker_pos(self):
         """Return Marker's position as a (longitude, latitude) tuple"""
         return mercantile.lnglat(*self.marker._data[0][0][0:2])
+
+    def marker_at(self, longlat, transform_method='relative'):
+        marker = scene.visuals.Markers(parent=self.scene)
+        if transform_method == 'relative_mercator':
+            marker.set_data(np.array([[0, 0]]), face_color=[(0, 1, 1)], size=10)
+            marker.transform = RelativeMercatorTransform(*longlat)
+        elif transform_method == 'mercator':
+            data = np.array([longlat])
+            marker.set_data(data, face_color=[(0, 1, 1)], size=10)
+            marker.transform = MercatorTransform()
+        elif transform_method == 'direct':
+            data = mercantile.xy(*longlat)
+            longlat = np.array([[data[0], data[1]]])
+            marker.set_data(longlat, face_color=[(0, 1, 1)], size=10)
+        else:
+            msg = ('transform_method "{}" not recognized. Known methods are '
+                   '"mercator", "relative_mercator", and "direct".')
+            msg = msg.format(transform_method)
+            raise ValueError(msg)
+
+    def marker_at_curpos(self, transform_method='direct'):
+        self.marker_at(self.marker_pos, transform_method)
 
 
 class TileCamera(scene.PanZoomCamera):
