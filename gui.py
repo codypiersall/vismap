@@ -3,14 +3,18 @@ import os
 
 
 import numpy as np
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import Qt
+try:
+    from PyQt4 import QtCore, QtGui
+    from PyQt4.QtCore import Qt
+    QtWidgets = QtGui
+except ImportError:
+    from PyQt5 import QtCore, QtGui
+    from PyQt5.QtCore import Qt
+    from PyQt5 import QtWidgets
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
 import vismap
-
-QtWidgets = QtGui
 
 
 # Start Program
