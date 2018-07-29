@@ -3,7 +3,6 @@ Contains the MapView, which automatically grabs the correct tiles based on
 the current zoom level.
 """
 
-
 import enum
 import functools
 import logging
@@ -49,6 +48,7 @@ class MapView(scene.ViewBox):
         # this lock is needed any time the scene graph is touched, or nodes of the
         # scene graph are transformed.
         self.scene_lock = threading.Lock()
+        self._enabled = True
 
         self._images = {}
         # mapping of {(lnglat, radius): vispy.scene.visuals.Ellipse}
@@ -408,6 +408,26 @@ class MapView(scene.ViewBox):
             'args': [z, x, y, missing],
         })
 
+    @property
+    def map_enabled(self):
+        """
+        Enable or disable the mapping capabilities of this view.
+
+        """
+        return self._enabled
+
+    @map_enabled.setter
+    def map_enabled(self, enabled):
+        self._enabled = enabled
+
+        self._attribution.visible = enabled
+        if enabled:
+            self.add_tiles_for_current_zoom()
+        else:
+            images = list(self._images.keys())
+            for im in images:
+                self.remove_tile(im)
+
     def circle(self, longlat, radius, border_color=(1, 1, 1), color=(1, 1, 1 , 0)):
         """Add a circle centere at ``center`` of radius ``radius``
 
@@ -447,52 +467,35 @@ class MapView(scene.ViewBox):
         """Return Marker's position as a (longitude, latitude) tuple"""
         return mercantile.lnglat(*self.marker._data[0][0][0:2])
 
-    def marker_at(self, longlat, transform_method='relative'):
+    def marker_at(self, longlat, face_color=(0, 1, 1), size=10):
         marker = scene.visuals.Markers(parent=self.scene)
-        if transform_method == 'relative_mercator':
-            marker.set_data(np.array([[0, 0]]), face_color=[(0, 1, 1)], size=10)
-            marker.transform = RelativeMercatorTransform(*longlat)
-        elif transform_method == 'mercator':
-            data = np.array([longlat])
-            marker.set_data(data, face_color=[(0, 1, 1)], size=10)
-            marker.transform = MercatorTransform()
-        elif transform_method == 'direct':
-            data = mercantile.xy(*longlat)
-            longlat = np.array([[data[0], data[1]]])
-            marker.set_data(longlat, face_color=[(0, 1, 1)], size=10)
-        else:
-            msg = ('transform_method "{}" not recognized. Known methods are '
-                   '"mercator", "relative_mercator", and "direct".')
-            msg = msg.format(transform_method)
-            raise ValueError(msg)
-
-    def marker_at_curpos(self, transform_method='direct'):
-        self.marker_at(self.marker_pos, transform_method)
-
+        data = np.array([longlat])
+        marker.set_data(data, face_color=[face_color], size=size)
+        marker.transform = MercatorTransform()
 
 class TileCamera(scene.PanZoomCamera):
     def viewbox_mouse_event(self, event):
         view = self.parent.parent
-        if event.handled:
-            return
         with view.scene_lock:
             super().viewbox_mouse_event(event)
-        # if the tile command queue has anything in it, let's just get the
-        # heck out of here; this prevents a hugely unresponsive deal.
-        if not view.queue.empty():
-            return
-        # figure out if we need an update; if the mouse is moving, but no key
-        # is held down, we don't need to update.
-        needs_update = False
-        if event.type == 'mouse_wheel':
-            needs_update = True
-        elif event.type == 'mouse_move':
-            # conditions taken from PanZoomCamera source code
-            modifiers = event.mouse_event.modifiers
-            if 1 in event.buttons and not modifiers:
-                # translating; need to update
+            if not view.map_enabled:
+                return
+            # if the tile command queue has anything in it, let's just get the
+            # heck out of here; this prevents a hugely unresponsive deal.
+            if not view.queue.empty():
+                return
+            # figure out if we need an update; if the mouse is moving, but no key
+            # is held down, we don't need to update.
+            needs_update = False
+            if event.type == 'mouse_wheel':
                 needs_update = True
-            elif 2 in event.buttons and not modifiers:
-                needs_update = True
-        if needs_update:
-            view.add_tiles_for_current_zoom()
+            elif event.type == 'mouse_move':
+                # conditions taken from PanZoomCamera source code
+                modifiers = event.mouse_event.modifiers
+                if 1 in event.buttons and not modifiers:
+                    # translating; need to update
+                    needs_update = True
+                elif 2 in event.buttons and not modifiers:
+                    needs_update = True
+            if needs_update:
+                view.add_tiles_for_current_zoom()
