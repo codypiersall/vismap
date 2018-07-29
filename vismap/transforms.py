@@ -89,7 +89,7 @@ class MercatorTransform(BaseTransform):
 
     Linear = False
     Orthogonal = True
-    NonScaling = False
+    NonScaling = True
     Isometric = False
 
     glsl_map = """
@@ -188,7 +188,7 @@ class RelativeMercatorTransform(BaseTransform):
 
     Linear = False
     Orthogonal = True
-    NonScaling = False
+    NonScaling = True
     Isometric = False
 
     glsl_imap = """
