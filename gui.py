@@ -64,7 +64,12 @@ class MainWindow(QtWidgets.QMainWindow):
         consoleDock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Ignored)
 
         self.IPythonConsole = SizedRichJupyterWidget()
-        self.IPythonConsole.push({'self': self, 'np': np})
+        self.IPythonConsole.push({
+            'self': self,
+            'np': np,
+            'canvas': canvas,
+            'view': canvas.view,
+        })
         self.IPythonConsole.push(globals())
         self.IPythonConsole.push(locals())
 
