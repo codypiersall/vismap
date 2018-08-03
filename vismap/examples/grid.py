@@ -1,3 +1,8 @@
+"""
+Plot 4 separate maps in a grid pattern.
+
+This uses the MapView directly.
+"""
 from vispy import app
 from vispy.scene import SceneCanvas
 import vismap.view
