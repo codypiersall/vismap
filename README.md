@@ -1,11 +1,13 @@
 Vismap
 ======
 
-Provides a Canvas for creating maps with
-[Vispy](https://github.com/vispy/vispy).  The canvas gets its tiles from a
-[TileProvider](vismap/tile_providers.py).  Several tile providers are bundled
-with this project; adding a tile provider simply requires knowing the URL at
-which to grab a tile, and providing the attribution text for the tiles.
+Provides a ViewBox for creating maps with
+[Vispy](https://github.com/vispy/vispy).  The view automatically gets its tiles
+from a [TileProvider](vismap/tile_providers.py) based on the zoom level.
+Several tile providers are bundled with this project; adding a tile provider
+simply requires knowing the URL at which to grab a tile, and providing the
+attribution text for the tiles.  You can add your own data to the map by
+creating SceneVisuals and setting the parent to the created `view.scene`.
 
 Run the provided [example](vismap/examples/basic.py) to check out how interacting with
 the map works.  The script is installed as ``vismap-example`` if you install
@@ -15,8 +17,7 @@ vismap; so from your command line just run
 
 Use the left and right arrow keys to change the tile provider.
 
-Vismap will provides you with a map on which to plot your own data.  An example
-map:
+Vismap provides you with a map on which to plot your own data.  An example map:
 
 ![Stamen Toner Inverted](stamen_toner_inverted.png)
 
@@ -24,7 +25,7 @@ What's the Point?
 -----------------
 
 The idea is to be able to display real-time geographical data on top of a
-map–for example, radar data.  This project provides the canvas which
+map–for example, radar data.  This project provides the view which
 automatically fills the map based on the current zoom level, and also provides
 transforms, so you can actually view data on top of the map.  The transforms
 are located in [vismap/transforms.py](vismap/transforms.py).
@@ -54,6 +55,7 @@ of the data in meters, relative to a specific latitude and longitude.
 When you are using these transforms, make sure you **always remember to add the
 visual to the correct scene**, otherwise the data will not show up and it will
 probably be confusing.
+
 
 Installing
 ----------
