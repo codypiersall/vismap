@@ -26,6 +26,8 @@ setuptools.setup(
     author_email="cody.piersall@gmail.com",
     description="Tile maps rendered with Vispy",
     long_description=long_description,
+    license='MIT',
+    keywords='vispy plot geography map',
     long_description_content_type="text/markdown",
     url="https://github.com/codypiersall/vismap",
     packages=['vismap'],
