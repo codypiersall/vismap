@@ -21,7 +21,7 @@ entry_points = {
 
 setuptools.setup(
     name="vismap",
-    version="0.1.1",
+    version="0.1.2",
     author="Cody Piersall",
     author_email="cody.piersall@gmail.com",
     description="Tile maps rendered with Vispy",
@@ -30,7 +30,7 @@ setuptools.setup(
     keywords='vispy plot geography map',
     long_description_content_type="text/markdown",
     url="https://github.com/codypiersall/vismap",
-    packages=['vismap'],
+    packages=setuptools.find_packages(),
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
