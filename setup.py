@@ -24,7 +24,7 @@ entry_points = {
 
 setuptools.setup(
     name="vismap",
-    version="0.2.0",
+    version=__version__,
     author="Cody Piersall",
     author_email="cody.piersall@gmail.com",
     description="Tile maps rendered with Vispy",
