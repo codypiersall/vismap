@@ -1,5 +1,8 @@
 import setuptools
 
+# have to exec; can't import the package before it's built.
+exec(open("vismap/_version.py", encoding="utf-8").read())
+
 install_requires = [
     'numpy',
     'vispy',
