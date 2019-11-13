@@ -374,14 +374,18 @@ class MapView(scene.ViewBox):
     def _add_rgb_as_image(self, rgb, z, x, y):
         """Create image, and apply appropriate transform to it."""
         with self.scene_lock:
+            # Note: we're not adding the image to the scene yet, so that it
+            # won't be drawn until we generate the correct transform.  We're
+            # passing parent=None to be explicit about it.
             image = scene.visuals.Image(
                 rgb,
                 interpolation='hanning',
-                parent=self.scene,
                 method='subdivide',
+                parent=None,
             )
             transform = self.get_st_transform(z, x, y)
             image.transform = transform
+            image.parent = self.scene
         return image
 
     def _add_tile(self, z, x, y, missing=OnMissing.RAISE):
