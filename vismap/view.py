@@ -101,7 +101,6 @@ class MapView(scene.ViewBox):
         self.marker = vispy.scene.visuals.Markers(parent=self.scene)
         self.marker.set_data(np.array([[0, 0]]), face_color=[(1, 1, 1)])
         self.marker.order = 1
-        self.marker.draw()
         self.camera.rect = rect
         self.last_event = None
         self.marker_size = 10
