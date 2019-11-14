@@ -104,10 +104,10 @@ class MapView(scene.ViewBox):
         self.camera.rect = rect
         self.last_event = None
         self.marker_size = 10
-        self.queue = queue.Queue()
+        self._queue = queue.Queue()
         self.worker_thread = threading.Thread(
             target=self.tile_controller,
-            args=(self.queue,),
+            args=(self._queue,),
             daemon=True,
         )
         self.worker_thread.start()
@@ -128,7 +128,7 @@ class MapView(scene.ViewBox):
                     args = data.get('args', [])
                     kwargs = data.get('kwargs', {})
                     method(*args, **kwargs)
-            except:
+            except BaseException:
                 # want to keep the loop going
                 msg = 'tile_controller thread error on data {}'
                 msg = msg.format(data)
@@ -198,15 +198,6 @@ class MapView(scene.ViewBox):
         if zoom < 0:
             zoom = 0
         return zoom
-
-    def _update_transforms(self):
-        """
-        Holds the scene_lock while updating transforms.  It was seen through
-        tracebacks that this method seemed to be the best place to put a lock.
-
-        """
-        with self.scene_lock:
-            super()._update_transforms()
 
     def get_st_transform(self, z, x, y):
         """
@@ -304,7 +295,7 @@ class MapView(scene.ViewBox):
         Fill the current view with tiles.  Does the actual operation in the
         background.
         """
-        self.queue.put({
+        self._queue.put({
             'cmd': 'call_method',
             'name': '_add_tiles_for_zoom',
             'args': [self.tile_zoom_level, self.current_bounds]
@@ -405,7 +396,7 @@ class MapView(scene.ViewBox):
         If the tile for the specified zoom, x, and y cannot be found, raises a
         TileNotFoundError.
         """
-        self.queue.put({
+        self._queue.put({
             'cmd': 'call_method',
             'name': '_add_tile',
             'args': [z, x, y, missing],
@@ -431,7 +422,7 @@ class MapView(scene.ViewBox):
             for im in images:
                 self.remove_tile(im)
 
-    def circle(self, longlat, radius, border_color=(1, 1, 1), color=(1, 1, 1 , 0)):
+    def circle(self, longlat, radius, border_color=(1, 1, 1), color=(1, 1, 1, 0)):
         """Add a circle centere at ``center`` of radius ``radius``
 
         Args:
@@ -476,6 +467,7 @@ class MapView(scene.ViewBox):
         marker.set_data(data, face_color=[face_color], size=size)
         marker.transform = MercatorTransform()
 
+
 class TileCamera(scene.PanZoomCamera):
     def viewbox_mouse_event(self, event):
         view = self.parent.parent
@@ -485,7 +477,7 @@ class TileCamera(scene.PanZoomCamera):
                 return
             # if the tile command queue has anything in it, let's just get the
             # heck out of here; this prevents a hugely unresponsive deal.
-            if not view.queue.empty():
+            if not view._queue.empty():
                 return
             # figure out if we need an update; if the mouse is moving, but no key
             # is held down, we don't need to update.
