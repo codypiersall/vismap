@@ -466,6 +466,7 @@ class MapView(scene.ViewBox):
         data = np.array([longlat])
         marker.set_data(data, face_color=[face_color], size=size)
         marker.transform = MercatorTransform()
+        return marker
 
 
 class TileCamera(scene.PanZoomCamera):
