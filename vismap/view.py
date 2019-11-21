@@ -462,6 +462,10 @@ class MapView(scene.ViewBox):
         return mercantile.lnglat(*self.marker._data[0][0][0:2])
 
     def marker_at(self, longlat, face_color=(0, 1, 1), size=10):
+        """
+        Place a single marker at the given longlat tuple.
+
+        """
         marker = scene.visuals.Markers(parent=self.scene)
         data = np.array([longlat])
         marker.set_data(data, face_color=[face_color], size=size)
