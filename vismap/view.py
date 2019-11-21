@@ -444,10 +444,15 @@ class MapView(scene.ViewBox):
         )
         c.transform = RelativeMercatorTransform(*longlat)
         self._circles[key] = c
+        return c
 
     def circle_at_marker(self, radius, border_color=(1, 1, 1), color=(1, 1, 1, 0)):
+        """
+        Place a circle with the given radius around the middle-click marker.
+
+        """
         longlat = self.marker_pos
-        self.circle(longlat, radius, border_color, color)
+        return self.circle(longlat, radius, border_color, color)
 
     def remove_circle(self, longlat, radius):
         """Remove the circle at ``longlat`` with radius ``radius`` from the
