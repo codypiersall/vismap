@@ -276,10 +276,14 @@ class MapView(scene.ViewBox):
             image = self._add_rgb_as_image(rgb, z, x0, y1)
             self._images[z, x0, x1, y0, y1] = image
 
-        for key in list(self._images):
-            z = key[0]
-            if z != zoom_level:
-                self.remove_tile(key)
+        self.scene.events.block()
+        try:
+            for key in list(self._images):
+                z = key[0]
+                if z != zoom_level:
+                    self.remove_tile(key)
+        finally:
+            self.scene.events.unblock()
 
     def remove_tile(self, key):
         """Remove the tile from the scene.
