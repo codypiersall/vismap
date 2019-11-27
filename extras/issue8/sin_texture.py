@@ -32,9 +32,14 @@ class TextureSinTransform(BaseTransform):
         }"""
 
     glsl_imap = """
+        // does asin transform using a texture
         #define M_PI 3.1415926535897932384626433832795
         vec4 good_sin_transform(vec4 pos) {
-            pos.y = texture1D($trans_inv, pos.x).r;
+            // input is scaled from 0 to 1, we need it to be -1 to 1 (the
+            // domain of asin)
+            float x = pos.x * 2 -1.0;
+            x = x + 1.0 / (2 * $npoints);
+            pos.y = texture1D($trans_inv, x).r;
             return pos;
         }"""
 
@@ -56,7 +61,9 @@ class TextureSinTransform(BaseTransform):
         shader = self.shader_map()
         shader['trans'] = self._trans_tex
         shader['npoints'] = float(npoints)
-        self.shader_imap()['trans_inv'] = self._trans_inv
+        imap = self.shader_imap()
+        imap['trans_inv'] = self._trans_inv
+        imap['npoints'] = float(npoints)
 
 
 class BuiltinSinTransform(BaseTransform):
