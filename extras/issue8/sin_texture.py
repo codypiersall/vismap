@@ -10,16 +10,7 @@ import vispy.gloo as gloo
 from vispy.visuals.transforms.base_transform import BaseTransform
 from vispy.plot import Fig
 
-from vispy.scene.visuals import LinePlot
-
-
-def to_rgb(x):
-    p1 = np.floor(x * 256)
-    x //= 256
-    p2 = np.floor(x * 256)
-    x //= 256
-    p3 = np.round(x * 256)
-    return p1, p2, p3
+from vispy.scene.visuals import LinePlot, Markers
 
 
 class TextureSinTransform(BaseTransform):
@@ -51,8 +42,8 @@ class TextureSinTransform(BaseTransform):
         super().__init__()
         self.npoints = npoints
         # we're intentionally not including the endpoint
-        x = np.linspace(0, 2 * np.pi, npoints, dtype='float32', endpoint=False)
-        sin_x = np.sin(x)
+        self.x = x = np.linspace(0, 2 * np.pi, npoints, dtype='float32', endpoint=False)
+        self.sin_x = sin_x = np.sin(x)
         data = np.array([x, sin_x])
         self._trans_tex = gloo.Texture1D(sin_x,
                                          interpolation='linear',
@@ -99,6 +90,7 @@ class BuiltinSinTransform(BaseTransform):
 
 def main():
     # compare CPU and GPU implementations of sin().
+    # x0 = np.linspace(-2 * np.pi, 2 * np.pi, 400000)
     x0 = np.linspace(-2 * np.pi, 2 * np.pi, 400000)
     sin_cpu = np.sin(x0)
 
@@ -114,8 +106,11 @@ def main():
     coarse_sin_line = LinePlot((x0, x0), color='blue')
     coarse_sin_line.transform = TextureSinTransform(20)
 
-    fine_sin_line = LinePlot((x0, x0), color='green', symbol='o')
-    fine_sin_line.transform = TextureSinTransform(8192 * 2)
+    fine_sin_line = LinePlot((x0, x0), color='green')
+    tr = TextureSinTransform(8192 * 2)
+    fine_sin_line.transform = tr
+    pos = np.array([tr.x, tr.sin_x]).T
+    markers = Markers(pos=pos, symbol='o')
 
 
     # logic taken from PlotWidget.plot()
@@ -125,6 +120,8 @@ def main():
     for line in sin_line_cpu, coarse_sin_line, fine_sin_line, gpu_sin_line:
         ax.view.add(line)
         ax.visuals.append(line)
+    ax.view.add(markers)
+    ax.visuals.append(markers)
 
     ax.title.text = 'sin(x), cpu vs gpu'
     ax.view.camera.rect = [-1.02740, -0.85599, 0.00001, 0.00004]
