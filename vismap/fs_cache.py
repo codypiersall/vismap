@@ -44,11 +44,11 @@ class FSDict(MutableMapping):
             f.write(value)
 
     def __iter__(self):
-        files = os.listdir(self.path)
+        files = os.listdir(self.root)
         return (os.path.join(self.root, p) for p in files)
 
     def __len__(self):
-        return len(os.listdir(self.path))
+        return len(os.listdir(self.root))
 
 
 class FSPickleDict(FSDict):
