@@ -3,6 +3,7 @@ Plot 4 separate maps in a grid pattern.
 
 This uses the MapView directly.
 """
+
 from vispy import app
 from vispy.scene import SceneCanvas
 import vismap.view
@@ -22,9 +23,9 @@ class Canvas(SceneCanvas):
 
 def main():
     canvas = Canvas(show=True)
-    canvas.title = 'Maps'
+    canvas.title = "Maps"
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

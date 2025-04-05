@@ -24,10 +24,10 @@ class Canvas(vismap.Canvas):
         self.freeze()
 
     def on_key_press(self, e):
-        if e.key == 'Left':
+        if e.key == "Left":
             self._provider_index -= 1
             self._update_provider()
-        elif e.key == 'Right':
+        elif e.key == "Right":
             self._provider_index += 1
             self._update_provider()
 
@@ -39,9 +39,9 @@ class Canvas(vismap.Canvas):
 
 def main():
     canvas = Canvas(show=True)
-    canvas.title = 'Maps'
+    canvas.title = "Maps"
     app.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

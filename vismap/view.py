@@ -21,12 +21,12 @@ from vispy.visuals import transforms as transforms
 from .tile_providers import StamenTonerInverted, TileNotFoundError
 from .transforms import RelativeMercatorTransform, MercatorTransform
 
-_CAT_FILE = os.path.join(os.path.dirname(__file__),
-                         'cat-killer-256x256.png')
+_CAT_FILE = os.path.join(os.path.dirname(__file__), "cat-killer-256x256.png")
 
 
 class OnMissing(enum.Enum):
     """What action to take whenever a tile is missing"""
+
     # raise an exception
     RAISE = 0
     # ignore the exception and return None
@@ -76,12 +76,14 @@ class MapView(scene.ViewBox):
 
         # default zoom shows the whole world
         bbox = mercantile.xy_bounds(0, 0, 0)
-        rect = vispy.geometry.Rect(bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom)
+        rect = vispy.geometry.Rect(
+            bbox.left, bbox.bottom, bbox.right - bbox.left, bbox.top - bbox.bottom
+        )
         self.longlat_text = vispy.scene.visuals.Text(
-            '',
+            "",
             parent=self.scene,
-            color='red',
-            anchor_x='left',
+            color="red",
+            anchor_x="left",
             font_size=10,
         )
         self.longlat_text.order = 1
@@ -91,9 +93,9 @@ class MapView(scene.ViewBox):
             parent=self,
             # a few pixels from the top left
             pos=(4, 4),
-            color='white',
-            anchor_x='left',
-            anchor_y='bottom',
+            color="white",
+            anchor_x="left",
+            anchor_y="bottom",
             font_size=9,
         )
         self._attribution.order = 1
@@ -122,15 +124,15 @@ class MapView(scene.ViewBox):
                 data = queue.get()
                 if data is None:
                     break
-                cmd = data['cmd']
-                if cmd == 'call_method':
-                    method = getattr(self, data['name'])
-                    args = data.get('args', [])
-                    kwargs = data.get('kwargs', {})
+                cmd = data["cmd"]
+                if cmd == "call_method":
+                    method = getattr(self, data["name"])
+                    args = data.get("args", [])
+                    kwargs = data.get("kwargs", {})
                     method(*args, **kwargs)
             except BaseException:
                 # want to keep the loop going
-                msg = 'tile_controller thread error on data {}'
+                msg = "tile_controller thread error on data {}"
                 msg = msg.format(data)
                 logger.exception(msg)
 
@@ -152,7 +154,7 @@ class MapView(scene.ViewBox):
             self.last_event = event
             if event.button == 2:
                 # right click
-                self.longlat_text.text = ''
+                self.longlat_text.text = ""
                 # should be painted below anything else
                 self.marker.visible = False
                 return
@@ -168,12 +170,13 @@ class MapView(scene.ViewBox):
                 view_x = rect.left + x_interp * (rect.right - rect.left)
                 view_y = rect.top + y_interp * (rect.bottom - rect.top)
                 self.longlat_text.pos = (view_x, view_y)
-                msg = '((long {:f} lat {:f}) ({:f}, {:f})'
+                msg = "((long {:f} lat {:f}) ({:f}, {:f})"
                 lng, lat = mercantile.lnglat(view_x, view_y)
                 msg = msg.format(lng, lat, view_x, view_y)
                 self.longlat_text.text = msg
-                self.marker.set_data(np.array([[view_x, view_y]]),
-                                     size=self.marker_size)
+                self.marker.set_data(
+                    np.array([[view_x, view_y]]), size=self.marker_size
+                )
                 self.marker.visible = True
 
     @property
@@ -299,11 +302,13 @@ class MapView(scene.ViewBox):
         Fill the current view with tiles.  Does the actual operation in the
         background.
         """
-        self._queue.put({
-            'cmd': 'call_method',
-            'name': '_add_tiles_for_zoom',
-            'args': [self.tile_zoom_level, self.current_bounds]
-        })
+        self._queue.put(
+            {
+                "cmd": "call_method",
+                "name": "_add_tiles_for_zoom",
+                "args": [self.tile_zoom_level, self.current_bounds],
+            }
+        )
 
     @property
     def scene_images(self):
@@ -352,7 +357,7 @@ class MapView(scene.ViewBox):
             elif missing == OnMissing.IGNORE:
                 return
             elif missing == OnMissing.REPLACE_WITH_CAT:
-                logger.warning('replacing %s with a cat.  Meow!', (z, x, y))
+                logger.warning("replacing %s with a cat.  Meow!", (z, x, y))
                 rgb = self._get_cat()
             else:
                 raise
@@ -360,7 +365,7 @@ class MapView(scene.ViewBox):
 
     @functools.lru_cache(maxsize=1)
     def _get_cat(self):
-        with open(_CAT_FILE, 'rb') as f:
+        with open(_CAT_FILE, "rb") as f:
             im = PIL.Image.open(f)
             rgb = np.array(im)
         flipped = np.flip(rgb, 0)
@@ -374,8 +379,8 @@ class MapView(scene.ViewBox):
             # passing parent=None to be explicit about it.
             image = scene.visuals.Image(
                 rgb,
-                interpolation='hanning',
-                method='subdivide',
+                interpolation="hanning",
+                method="subdivide",
                 parent=None,
             )
             transform = self.get_st_transform(z, x, y)
@@ -387,7 +392,7 @@ class MapView(scene.ViewBox):
         if (z, x, y) in self._images:
             im = self._images[z, x, y]
             if im not in self.scene_images:
-                logger.error('_images dict out of sync with scene children')
+                logger.error("_images dict out of sync with scene children")
             else:
                 return
         rgb = self.get_tile(z, x, y, missing)
@@ -400,11 +405,13 @@ class MapView(scene.ViewBox):
         If the tile for the specified zoom, x, and y cannot be found, raises a
         TileNotFoundError.
         """
-        self._queue.put({
-            'cmd': 'call_method',
-            'name': '_add_tile',
-            'args': [z, x, y, missing],
-        })
+        self._queue.put(
+            {
+                "cmd": "call_method",
+                "name": "_add_tile",
+                "args": [z, x, y, missing],
+            }
+        )
 
     @property
     def map_enabled(self):
@@ -496,9 +503,9 @@ class TileCamera(scene.PanZoomCamera):
             # figure out if we need an update; if the mouse is moving, but no key
             # is held down, we don't need to update.
             needs_update = False
-            if event.type == 'mouse_wheel':
+            if event.type == "mouse_wheel":
                 needs_update = True
-            elif event.type == 'mouse_move':
+            elif event.type == "mouse_move":
                 # conditions taken from PanZoomCamera source code
                 modifiers = event.mouse_event.modifiers
                 if 1 in event.buttons and not modifiers:

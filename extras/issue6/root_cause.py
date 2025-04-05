@@ -49,9 +49,9 @@ def main():
     fig = Fig()
     ax = fig[0, 0]
     # cpu data
-    cos_line_cpu = LinePlot((x0, cos_cpu), color='k')
+    cos_line_cpu = LinePlot((x0, cos_cpu), color="k")
     # gpu data
-    cos_line_gpu = LinePlot((x0, x0), color='red')
+    cos_line_gpu = LinePlot((x0, x0), color="red")
     cos_line_gpu.transform = CosTransform()
 
     # logic taken from PlotWidget.plot()
@@ -61,10 +61,10 @@ def main():
 
     ax.view.add(cos_line_gpu)
     ax.visuals.append(cos_line_gpu)
-    ax.title.text = 'Cos(x), cpu vs gpu'
+    ax.title.text = "Cos(x), cpu vs gpu"
     ax.view.camera.rect = [1.01162, 0.530485, 0.00001, 0.00005]
     fig.show(run=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

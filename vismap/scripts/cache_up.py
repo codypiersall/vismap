@@ -17,45 +17,45 @@ from ..tile_providers import providers
 def _get_clargs():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        '--lat',
+        "--lat",
         type=float,
-        help='latitude at which to center the collection',
-        required=True
+        help="latitude at which to center the collection",
+        required=True,
     )
     p.add_argument(
-        '--long',
+        "--long",
         type=float,
-        help='longitude at which to center the collection',
-        required=True
+        help="longitude at which to center the collection",
+        required=True,
     )
 
     p.add_argument(
-        '--size',
+        "--size",
         type=int,
-        help='Number of tiles to grab for each direction at each zoom level.'
-             '  The total number that will be taken is SIZE**2, for each zoom '
-             'level.',
+        help="Number of tiles to grab for each direction at each zoom level."
+        "  The total number that will be taken is SIZE**2, for each zoom "
+        "level.",
         default=30,
     )
 
     p.add_argument(
-        '--max-zoom',
+        "--max-zoom",
         type=int,
-        help='The maximum zoom at which to grab tiles',
-        default=16
+        help="The maximum zoom at which to grab tiles",
+        default=16,
     )
 
     p.add_argument(
-        '--provider',
+        "--provider",
         choices=providers.keys(),
-        help='Tile Provider (by name) to retrieve.',
-        default='StamenTonerInverted',
+        help="Tile Provider (by name) to retrieve.",
+        default="StamenTonerInverted",
     )
 
     p.add_argument(
-        '--verbose',
-        action='store_true',
-        default='StamenTonerInverted',
+        "--verbose",
+        action="store_true",
+        default="StamenTonerInverted",
     )
     return p.parse_args()
 
@@ -96,5 +96,5 @@ def main():
                 result.get()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

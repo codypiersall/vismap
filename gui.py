@@ -3,9 +3,11 @@ import os
 
 
 import numpy as np
+
 try:
     from PyQt4 import QtCore, QtGui
     from PyQt4.QtCore import Qt
+
     QtWidgets = QtGui
 except ImportError:
     from PyQt5 import QtCore, QtGui
@@ -19,37 +21,37 @@ import vismap
 
 # Start Program
 class MainWindow(QtWidgets.QMainWindow):
-
     quitting = QtCore.pyqtSignal(int)
-    title = 'Vispy Tilemaps'
+    title = "Vispy Tilemaps"
 
     def __init__(self, parent=None):
-
         QtWidgets.QMainWindow.__init__(self, parent)
         self.setWindowTitle(self.title)
         self.resize(1200, 900)
-        self.setDockOptions(self.AnimatedDocks | self.AllowNestedDocks | self.AllowTabbedDocks)
+        self.setDockOptions(
+            self.AnimatedDocks | self.AllowNestedDocks | self.AllowTabbedDocks
+        )
 
         ## Setup Bottom Dock
         self.__createBottomDockWidgets()
         # Set Default Positions
-        self.statusBar().showMessage('Ready')
+        self.statusBar().showMessage("Ready")
 
     def pushNewIPython(self, scan):
         try:
-            self.IPythonConsole.push({'scan': scan})
+            self.IPythonConsole.push({"scan": scan})
         except IndexError:
             pass
 
     def __createBottomDockWidgets(self):
         """Setup the bottom dock widgets"""
         ## Configure Status Widget
-        self.statusWidget = statusWidget = QtWidgets.QDockWidget('Status')
-        statusWidget.setObjectName('Status')
+        self.statusWidget = statusWidget = QtWidgets.QDockWidget("Status")
+        statusWidget.setObjectName("Status")
 
         self.canvas = canvas = vismap.Canvas(
             tile_provider=vismap.tile_providers.StamenTonerInverted(),
-            keys='interactive'
+            keys="interactive",
         )
 
         self.vislayout = QtWidgets.QBoxLayout(1)
@@ -59,17 +61,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dockedWidget.setLayout(self.vislayout)
 
         ## Configure Console/Log Area
-        consoleDock = QtWidgets.QDockWidget('Console')
-        consoleDock.setObjectName('Console')
-        consoleDock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Ignored)
+        consoleDock = QtWidgets.QDockWidget("Console")
+        consoleDock.setObjectName("Console")
+        consoleDock.setSizePolicy(
+            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Ignored
+        )
 
         self.IPythonConsole = SizedRichJupyterWidget()
-        self.IPythonConsole.push({
-            'self': self,
-            'np': np,
-            'canvas': canvas,
-            'view': canvas.view,
-        })
+        self.IPythonConsole.push(
+            {
+                "self": self,
+                "np": np,
+                "canvas": canvas,
+                "view": canvas.view,
+            }
+        )
         self.IPythonConsole.push(globals())
         self.IPythonConsole.push(locals())
 
@@ -77,11 +83,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # self.hw_config = HardwareManager()
 
-        #use dummy controller by default
-        self.radar_controller_name = os.environ.get('RADAR_DEV_PLATFORM', 'CPPAR')
+        # use dummy controller by default
+        self.radar_controller_name = os.environ.get("RADAR_DEV_PLATFORM", "CPPAR")
 
-        self.addDockWidget(Qt.RightDockWidgetArea,   consoleDock,  Qt.Vertical)
-        self.addDockWidget(Qt.RightDockWidgetArea,   statusWidget, Qt.Horizontal)
+        self.addDockWidget(Qt.RightDockWidgetArea, consoleDock, Qt.Vertical)
+        self.addDockWidget(Qt.RightDockWidgetArea, statusWidget, Qt.Horizontal)
         # self.addDockWidget(Qt.BottomDockWidgetArea,  statusWidget, Qt.Horizontal)
 
         # self.tabifyDockWidget(consoleDock, logDock)
@@ -95,7 +101,8 @@ class MinimalJupyterWidget(RichJupyterWidget):
 
     This widget creates a kernel and a client as the docs recommend.
     """
-    def __init__(self, *args, profile='radar', **kwargs):
+
+    def __init__(self, *args, profile="radar", **kwargs):
         super().__init__(*args, **kwargs)
         self.manager = manager = QtInProcessKernelManager()
         manager.start_kernel()
@@ -119,8 +126,10 @@ class SizedRichJupyterWidget(MinimalJupyterWidget):
         s.setHeight(100)
         return s
 
+
 def main():
     import sys
+
     app = QtWidgets.QApplication(sys.argv)
     win = MainWindow()
     win.show()
@@ -131,8 +140,9 @@ def main():
     except SystemExit:
         pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    l = logging.getLogger('PIL.PngImagePlugin')
+    l = logging.getLogger("PIL.PngImagePlugin")
     l.setLevel(logging.WARNING)
     main()

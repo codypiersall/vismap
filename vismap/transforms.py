@@ -71,10 +71,10 @@ y_to_lat = Function("""
 
 
 def offset_coord(long, lat, x, y):
-    """ Offset x, y (given in meters) from specified long, lat.
+    """Offset x, y (given in meters) from specified long, lat.
 
-     Returns new long, lat tuple
-     """
+    Returns new long, lat tuple
+    """
     d_lat = y / R
     d_long = x / (R * np.cos(np.pi * lat / 180))
     lat_other = lat + d_lat * 180 / np.pi
@@ -121,11 +121,11 @@ class MercatorTransform(BaseTransform):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._shader_map['long_to_x'] = long_to_x
-        self._shader_map['lat_to_y'] = lat_to_y
+        self._shader_map["long_to_x"] = long_to_x
+        self._shader_map["lat_to_y"] = lat_to_y
 
-        self._shader_imap['x_to_long'] = x_to_long
-        self._shader_imap['y_to_lat'] = y_to_lat
+        self._shader_imap["x_to_long"] = x_to_long
+        self._shader_imap["y_to_lat"] = y_to_lat
 
     @arg_to_vec4
     def map(self, coords):
@@ -204,11 +204,11 @@ class RelativeMercatorTransform(BaseTransform):
         self._longitude = longitude
         self._latitude = latitude
         s = self._shader_map
-        s['lon'] = longitude
-        s['lat'] = latitude
-        s['long_to_x'] = long_to_x
-        s['lat_to_y'] = lat_to_y
-        s['y_to_lat'] = y_to_lat
+        s["lon"] = longitude
+        s["lat"] = latitude
+        s["long_to_x"] = long_to_x
+        s["lat_to_y"] = lat_to_y
+        s["y_to_lat"] = y_to_lat
 
     @property
     def longitude(self):
@@ -216,7 +216,7 @@ class RelativeMercatorTransform(BaseTransform):
 
     @longitude.setter
     def longitude(self, long):
-        self._shader_map['lon'] = long
+        self._shader_map["lon"] = long
         self._longitude = long
 
     @property
@@ -226,7 +226,7 @@ class RelativeMercatorTransform(BaseTransform):
     @latitude.setter
     def latitude(self, lat):
         self._latitude = lat
-        self._shader_map['lat'] = lat
+        self._shader_map["lat"] = lat
 
     @arg_to_vec4
     def map(self, coords):
@@ -239,4 +239,3 @@ class RelativeMercatorTransform(BaseTransform):
         m[:, 1] = y
         m[:, 2:] = coords[:, 2:]
         return m
-

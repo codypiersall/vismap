@@ -17,7 +17,8 @@ class FSDict(MutableMapping):
     given to the dict can actually exist as a file on the filesystem.  For
     example, a key with a \0 in it will raise an Exception.
     """
-    def __init__(self, root='cache'):
+
+    def __init__(self, root="cache"):
         self.root = os.path.abspath(root)
         os.makedirs(self.root, exist_ok=True)
 
@@ -29,7 +30,7 @@ class FSDict(MutableMapping):
         path = self._key_to_path(key)
         if not os.path.exists(path):
             raise KeyError
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             return f.read()
 
     def __delitem__(self, key):
@@ -40,7 +41,7 @@ class FSDict(MutableMapping):
         path = self._key_to_path(key)
         if isinstance(value, str):
             value = value.encode()
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             f.write(value)
 
     def __iter__(self):
@@ -64,11 +65,12 @@ class FSPickleDict(FSDict):
 
 
 class FSCache(BaseCache):
-    """ Filesystem cache backend."""
-    def __init__(self, location='cache', **options):
+    """Filesystem cache backend."""
+
+    def __init__(self, location="cache", **options):
         """
         :param location: root directory on filesystem cache
         """
         super(FSCache, self).__init__(**options)
-        self.responses = FSPickleDict(os.path.join(location, 'responses'))
-        self.keys_map = FSDict(os.path.join(location, 'urls'))
+        self.responses = FSPickleDict(os.path.join(location, "responses"))
+        self.keys_map = FSDict(os.path.join(location, "urls"))
