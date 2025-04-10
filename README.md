@@ -35,17 +35,19 @@ Currently, two transforms are provided:  `MercatorTransform` and
 naturally represented in longitude/latitude pairs. For example, the following
 will draw a line from Norman, OK to Oklahoma City, OK:
 
-    from vismap import Canvas, MercatorTransform
-    import vispy.scene.visuals as visuals
-    from vispy import app
-    import numpy as np
+```python
+from vismap import Canvas, MercatorTransform
+import vispy.scene.visuals as visuals
+from vispy import app
+import numpy as np
 
-    c = Canvas()
-    c.show()
-    line = visuals.Line(np.array([[-97.4395, 35.2226], [-97.5164, 35.4676]]),
-                        parent=c.view.scene)
-    line.transform = MercatorTransform()  # the magic line!
-    app.run()
+c = Canvas()
+c.show()
+line = visuals.Line(np.array([[-97.4395, 35.2226], [-97.5164, 35.4676]]),
+                    parent=c.view.scene)
+line.transform = MercatorTransform()  # the magic line!
+app.run()
+```
 
 The `RelativeMercatorTransform` is for plotting data that is naturally
 expressed in units of length, but would be nice if it were centered somewhere
@@ -62,4 +64,6 @@ Installing
 
 Vismap is available via pip:
 
-    pip install vismap
+```bash
+pip install vismap
+```

@@ -4,15 +4,9 @@ import os
 
 import numpy as np
 
-try:
-    from PyQt4 import QtCore, QtGui
-    from PyQt4.QtCore import Qt
-
-    QtWidgets = QtGui
-except ImportError:
-    from PyQt5 import QtCore, QtGui
-    from PyQt5.QtCore import Qt
-    from PyQt5 import QtWidgets
+from PyQt5 import QtCore, QtGui
+from PyQt5.QtCore import Qt
+from PyQt5 import QtWidgets
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
@@ -50,7 +44,7 @@ class MainWindow(QtWidgets.QMainWindow):
         statusWidget.setObjectName("Status")
 
         self.canvas = canvas = vismap.Canvas(
-            tile_provider=vismap.tile_providers.StamenTonerInverted(),
+            tile_provider=vismap.tile_providers.StamenToner(),
             keys="interactive",
         )
 

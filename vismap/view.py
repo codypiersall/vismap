@@ -18,7 +18,7 @@ import vispy
 from vispy import scene
 from vispy.visuals import transforms as transforms
 
-from .tile_providers import StamenTonerInverted, TileNotFoundError
+from .tile_providers import StamenToner, TileNotFoundError, TileProvider
 from .transforms import RelativeMercatorTransform, MercatorTransform
 
 _CAT_FILE = os.path.join(os.path.dirname(__file__), "cat-killer-256x256.png")
@@ -42,7 +42,7 @@ class MapView(scene.ViewBox):
     # x, y bounds for Web Mercator.
     _web_mercator_bounds = 20037508.342789244
 
-    def __init__(self, tile_provider=StamenTonerInverted(), *args, **kwargs):
+    def __init__(self, tile_provider: TileProvider = StamenToner(), *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.unfreeze()
         # this lock is needed any time the scene graph is touched, or nodes of the

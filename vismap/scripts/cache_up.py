@@ -49,13 +49,14 @@ def _get_clargs():
         "--provider",
         choices=providers.keys(),
         help="Tile Provider (by name) to retrieve.",
-        default="StamenTonerInverted",
+        default="StamenToner",
     )
 
     p.add_argument(
         "--verbose",
+        help="Be verbose",
         action="store_true",
-        default="StamenTonerInverted",
+        default=False,
     )
     return p.parse_args()
 
